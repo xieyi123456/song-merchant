@@ -1,0 +1,143 @@
+/* packages/client/src/components/PlayerStreet.module.css */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: #141414;
+  border: 1px solid #222;
+  border-radius: 6px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.activeRow {
+  border-color: #4a8a4a;
+  box-shadow: 0 0 8px rgba(74, 138, 74, 0.2);
+}
+
+.myRow {
+  background: #161612;
+}
+
+.playerInfo {
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.playerName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.meTag {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: #3a2a0a;
+  color: #d4a030;
+  border-radius: 3px;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.timerBadge {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: #2a3a1a;
+  color: #6ae060;
+  border-radius: 3px;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: #666;
+}
+
+.statValue {
+  font-size: 12px;
+  color: #bbb;
+  font-weight: 500;
+}
+
+/* 地块 */
+.slots {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.slot {
+  flex-shrink: 0;
+}
+
+.emptySlot {
+  width: 80px;
+  height: 56px;
+  border: 1px dashed #333;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d0d;
+}
+
+.slotIndex {
+  font-size: 12px;
+  color: #333;
+  font-weight: 500;
+}
+
+.builtSlot {
+  width: 80px;
+  height: 56px;
+  background: #1a2a1a;
+  border: 1px solid #2a3a2a;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.shopEmoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.shopName {
+  font-size: 10px;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 72px;
+}
+
+.shopBonus {
+  font-size: 10px;
+  color: #6ae060;
+}

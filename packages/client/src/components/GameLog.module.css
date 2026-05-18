@@ -1,0 +1,80 @@
+/* packages/client/src/components/GameLog.module.css */
+
+.container {
+  margin-top: 12px;
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.title {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.logList {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.emptyHint {
+  color: #444;
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.logEntry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logEntry:hover {
+  background: #1a1a1a;
+}
+
+.eventEntry {
+  background: #1a1010;
+  border-left: 2px solid #e06060;
+}
+
+.eventEntry .logMessage {
+  color: #e08080;
+}
+
+.systemEntry {
+  color: #888;
+  font-style: italic;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.logTime {
+  color: #444;
+  font-size: 11px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.logPlayer {
+  font-weight: 600;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.logMessage {
+  color: #bbb;
+  font-size: 12px;
+}
