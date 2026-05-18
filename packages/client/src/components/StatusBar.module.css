@@ -1,0 +1,123 @@
+/* packages/client/src/components/StatusBar.module.css */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 16px;
+  background: #141414;
+  border-bottom: 1px solid #2a2a2a;
+  flex-wrap: wrap;
+}
+
+.section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gameName {
+  font-size: 16px;
+  font-weight: 700;
+  color: #d4a030;
+  letter-spacing: 2px;
+}
+
+.label {
+  font-size: 12px;
+  color: #666;
+}
+
+.value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.playerName {
+  font-size: 14px;
+  color: #e0e0e0;
+}
+
+.phaseBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.phase0 {
+  /* PURCHASE */
+  background: #1a2a3a;
+  color: #6ab0e0;
+}
+
+.phase1 {
+  /* PREPARATION */
+  background: #2a2a1a;
+  color: #d4a030;
+}
+
+.phase2 {
+  /* OPERATION */
+  background: #1a2a1a;
+  color: #6ae060;
+}
+
+.phase3 {
+  /* DONE */
+  background: #222;
+  color: #888;
+}
+
+.timerSection {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.timerSvg {
+  width: 36px;
+  height: 36px;
+  transform: rotate(-90deg);
+}
+
+.timerCircle {
+  transition: stroke-dashoffset 0.3s linear;
+}
+
+.timerText {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 30px;
+  text-align: center;
+}
+
+.timerNormal {
+  /* 默认绿色 */
+}
+
+.timerWarning {
+  animation: pulseOrange 1s ease-in-out infinite;
+}
+
+.timerDanger {
+  animation: pulseRed 0.6s ease-in-out infinite;
+}
+
+@keyframes pulseOrange {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes pulseRed {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.roomCode {
+  font-size: 13px;
+  color: #888;
+  letter-spacing: 2px;
+}

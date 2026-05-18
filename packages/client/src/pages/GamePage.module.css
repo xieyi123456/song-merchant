@@ -1,0 +1,33 @@
+/* packages/client/src/pages/GamePage.module.css */
+
+.container {
+  min-height: 100vh;
+  padding: 0 16px 16px;
+  background: #0d0d0d;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #888;
+  font-size: 16px;
+}
+
+.publicRow {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 12px;
+  background: #111;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.streetsSection {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
