@@ -1,0 +1,86 @@
+/* packages/client/src/App.module.css */
+
+/* 全局样式 — 暗色主题 */
+:global(*) {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:global(body) {
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  color: #e0e0e0;
+  background-color: #0d0d0d;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+:global(.connecting-screen) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #888;
+  font-size: 16px;
+}
+
+/* 滚动条样式 */
+:global(::-webkit-scrollbar) {
+  width: 6px;
+  height: 6px;
+}
+
+:global(::-webkit-scrollbar-track) {
+  background: #1a1a1a;
+}
+
+:global(::-webkit-scrollbar-thumb) {
+  background: #444;
+  border-radius: 3px;
+}
+
+:global(::-webkit-scrollbar-thumb:hover) {
+  background: #555;
+}
+
+/* 按钮基础样式 */
+:global(button) {
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+:global(button:hover) {
+  opacity: 0.9;
+}
+
+:global(button:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 输入框基础样式 */
+:global(input) {
+  font-family: inherit;
+  font-size: 14px;
+  color: #e0e0e0;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+:global(input:focus) {
+  border-color: #d4a030;
+}
+
+:global(input::placeholder) {
+  color: #666;
+}

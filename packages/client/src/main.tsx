@@ -1,17 +1,15 @@
+// packages/client/src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import App from './App';
+import './App.module.css';
 
-function App() {
-  return (
-    <div>
-      <h1>大宋百商图</h1>
-      <p>游戏加载中...</p>
-    </div>
-  );
-}
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+root.render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
+  </React.StrictMode>
 );
