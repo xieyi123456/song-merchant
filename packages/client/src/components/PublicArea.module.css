@@ -1,0 +1,176 @@
+/* packages/client/src/components/PublicArea.module.css */
+
+.container {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+.section {
+  min-width: 160px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* 菜单供应区 */
+.menuSupply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menuGrade {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.gradeBadge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0d0d0d;
+}
+
+.menuInfo {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.menuCost {
+  color: #d4a030;
+}
+
+.menuStock {
+  color: #888;
+}
+
+/* 店铺牌 */
+.shopDisplay {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shopCard {
+  background: #1a2a1a;
+  border: 1px solid #2a3a2a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: default;
+}
+
+.shopEmoji {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.shopName {
+  font-size: 13px;
+  color: #e0e0e0;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.shopBuildCost {
+  font-size: 11px;
+  color: #e0a030;
+}
+
+.shopBonus {
+  font-size: 11px;
+  color: #6ae060;
+}
+
+.shopSynergy {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.synergyTag {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: #2a2a3a;
+  color: #9090d0;
+  border-radius: 3px;
+}
+
+/* 公共牌 */
+.publicCards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guestCard {
+  background: #1a1a2a;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.guestName {
+  font-size: 13px;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.guestTitle {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.guestDishCount {
+  font-size: 12px;
+  color: #d4a030;
+}
+
+.guestPrefs {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.prefTag {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: #2a3a1a;
+  color: #90c060;
+  border-radius: 3px;
+}
+
+/* 事件牌 */
+.eventCard {
+  background: #2a1a1a;
+  border: 1px solid #3a2a2a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.eventName {
+  font-size: 13px;
+  color: #e06060;
+  font-weight: 500;
+}
+
+.eventDesc {
+  font-size: 11px;
+  color: #b08080;
+  margin-top: 2px;
+}

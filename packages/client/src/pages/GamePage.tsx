@@ -2,6 +2,11 @@
 import React from 'react';
 import { PublicGameState } from '@song-merchant/shared';
 import { StatusBar } from '../components/StatusBar';
+import { PublicArea } from '../components/PublicArea';
+import { ActionPanel } from '../components/ActionPanel';
+import { RevenueEstimate } from '../components/RevenueEstimate';
+import { PlayerStreet } from '../components/PlayerStreet';
+import { GameLog } from '../components/GameLog';
 import styles from './GamePage.module.css';
 
 interface GamePageProps {
@@ -36,32 +41,35 @@ export const GamePage: React.FC<GamePageProps> = ({
         roomCode={roomCode}
       />
 
-      {/* 第 2 行 — 公共区域（横向排列） */}
+      {/* 第 2 行 — 公共区域 + 操作面板 */}
       <div className={styles.publicRow}>
-        {/* PublicArea placeholder — Task 11 */}
-        <div style={{ color: '#666', fontSize: 12 }}>公共区域</div>
-        {/* ActionPanel placeholder — Task 12 */}
-        <div style={{ color: '#666', fontSize: 12 }}>
-          操作面板 {isMyTurn ? '(我的回合)' : '(等待中)'}
-        </div>
+        <PublicArea gameState={gameState} />
+        <ActionPanel
+          gameState={gameState}
+          isMyTurn={isMyTurn}
+          sendMessage={sendMessage}
+        />
       </div>
 
       {/* 第 3 行 — 收益预估条（经营阶段显示） */}
-      {/* RevenueEstimate placeholder — Task 12 */}
+      <RevenueEstimate gameState={gameState} isMyTurn={isMyTurn} />
 
       {/* 主体 — 所有玩家商业街 */}
       <div className={styles.streetsSection}>
         {gameState.players.map((player, idx) => (
-          <div key={player.id} style={{ color: '#888', fontSize: 12, padding: 8, background: '#111', borderRadius: 4 }}>
-            {player.name} — {player.money}两
-            {idx === gameState.currentPlayerIndex ? ' (当前)' : ''}
-            {player.id === playerId ? ' (我)' : ''}
-          </div>
+          <PlayerStreet
+            key={player.id}
+            player={player}
+            isCurrentPlayer={idx === gameState.currentPlayerIndex}
+            isMe={player.id === playerId}
+            phaseStartTime={gameState.phaseStartTime}
+            phaseTimeLimit={gameState.phaseTimeLimit}
+          />
         ))}
       </div>
 
       {/* 底部 — 游戏日志 */}
-      {/* GameLog placeholder — Task 11 */}
+      <GameLog gameState={gameState} />
     </div>
   );
 };
