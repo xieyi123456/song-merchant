@@ -121,3 +121,28 @@
   color: #888;
   letter-spacing: 2px;
 }
+
+/* 手机端适配 */
+@media (max-width: 768px) {
+  .bar {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .gameName {
+    font-size: 14px;
+  }
+
+  .value {
+    font-size: 14px;
+  }
+
+  .roomCode {
+    font-size: 11px;
+  }
+
+  .timerSvg {
+    width: 28px;
+    height: 28px;
+  }
+}

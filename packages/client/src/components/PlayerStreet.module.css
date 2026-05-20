@@ -1,8 +1,8 @@
 /* packages/client/src/components/PlayerStreet.module.css */
 
-.row {
+.container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   padding: 10px 14px;
   background: #141414;
@@ -21,7 +21,7 @@
 }
 
 .playerInfo {
-  min-width: 140px;
+  min-width: 120px;
   flex-shrink: 0;
 }
 
@@ -81,45 +81,75 @@
   font-weight: 500;
 }
 
-/* 地块 */
-.slots {
-  display: flex;
-  gap: 6px;
+/* 2x4 网格小地图 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 4px;
   flex: 1;
-  overflow-x: auto;
+  min-width: 0;
 }
 
-.slot {
-  flex-shrink: 0;
+.gridCell {
+  min-height: 52px;
 }
 
-.emptySlot {
-  width: 80px;
-  height: 56px;
-  border: 1px dashed #333;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #0d0d0d;
-}
-
-.slotIndex {
-  font-size: 12px;
-  color: #333;
-  font-weight: 500;
-}
-
-.builtSlot {
-  width: 80px;
-  height: 56px;
-  background: #1a2a1a;
-  border: 1px solid #2a3a2a;
-  border-radius: 4px;
+/* 未开垦地块 */
+.unclearedCell {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  height: 100%;
+  min-height: 52px;
+  background: #1a1408;
+  border: 1px dashed #3a3020;
+  border-radius: 4px;
+}
+
+.cellIndex {
+  font-size: 10px;
+  color: #555;
+  font-weight: 500;
+}
+
+.clearingCost {
+  font-size: 10px;
+  color: #d4a030;
+  font-weight: 500;
+}
+
+/* 已清理地块 */
+.clearedCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 52px;
+  background: #1a2a1a;
+  border: 1px solid #2a4a2a;
+  border-radius: 4px;
+}
+
+.clearedLabel {
+  font-size: 9px;
+  color: #6ae060;
+  margin-top: 2px;
+}
+
+/* 已建造店铺 */
+.builtCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 52px;
+  background: #1a2a1a;
+  border: 1px solid #2a3a2a;
+  border-radius: 4px;
   padding: 2px;
 }
 
@@ -129,12 +159,13 @@
 }
 
 .shopName {
-  font-size: 10px;
+  font-size: 9px;
   color: #bbb;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 72px;
+  max-width: 68px;
+  text-align: center;
 }
 
 .shopBonus {
@@ -240,4 +271,50 @@
 .cardIncome {
   color: #6ae060;
   font-size: 10px;
+}
+
+/* 手机端适配 */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .playerInfo {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .grid {
+    width: 100%;
+  }
+
+  .gridCell {
+    min-height: 44px;
+  }
+
+  .unclearedCell,
+  .clearedCell,
+  .builtCell {
+    min-height: 44px;
+  }
+
+  .shopEmoji {
+    font-size: 14px;
+  }
+
+  .shopName {
+    font-size: 8px;
+    max-width: 52px;
+  }
+
+  .stats {
+    gap: 6px;
+  }
+
+  .deckPanel {
+    flex-direction: column;
+    gap: 8px;
+  }
 }

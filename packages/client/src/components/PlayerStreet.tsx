@@ -49,10 +49,14 @@ export const PlayerStreet: React.FC<PlayerStreetProps> = ({
     (s) => s.state === 'built'
   ).length;
 
+  const clearedCount = player.streetSlots.filter(
+    (s) => s.state === 'cleared'
+  ).length;
+
   return (
     <div className={`${styles.wrapper} ${isMe ? styles.myWrapper : ''}`}>
       <div
-        className={`${styles.row} ${isCurrentPlayer ? styles.activeRow : ''} ${isMe ? styles.myRow : ''}`}
+        className={`${styles.container} ${isCurrentPlayer ? styles.activeRow : ''} ${isMe ? styles.myRow : ''}`}
       >
         {/* 玩家信息 */}
         <div className={styles.playerInfo}>
@@ -89,16 +93,26 @@ export const PlayerStreet: React.FC<PlayerStreetProps> = ({
           </div>
         </div>
 
-        {/* 8 个地块 */}
-        <div className={styles.slots}>
+        {/* 2x4 小地图 */}
+        <div className={styles.grid}>
           {player.streetSlots.map((slot, idx) => (
-            <div key={idx} className={styles.slot}>
-              {slot.state === 'empty' ? (
-                <div className={styles.emptySlot}>
-                  <span className={styles.slotIndex}>{idx + 1}</span>
+            <div key={idx} className={styles.gridCell}>
+              {slot.state === 'uncleared' ? (
+                <div className={styles.unclearedCell}>
+                  <span className={styles.cellIndex}>{idx + 1}</span>
+                  <span className={styles.clearingCost}>
+                    {(slot as { state: 'uncleared'; clearingCost: number }).clearingCost === 0
+                      ? '免费'
+                      : `${(slot as { state: 'uncleared'; clearingCost: number }).clearingCost}两`}
+                  </span>
+                </div>
+              ) : slot.state === 'cleared' ? (
+                <div className={styles.clearedCell}>
+                  <span className={styles.cellIndex}>{idx + 1}</span>
+                  <span className={styles.clearedLabel}>可建造</span>
                 </div>
               ) : (
-                <div className={styles.builtSlot}>
+                <div className={styles.builtCell}>
                   <span className={styles.shopEmoji}>
                     {(slot as { state: 'built'; shopCard: any }).shopCard.emoji}
                   </span>

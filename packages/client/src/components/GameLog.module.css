@@ -78,3 +78,24 @@
   color: #bbb;
   font-size: 12px;
 }
+
+/* 手机端适配 */
+@media (max-width: 768px) {
+  .container {
+    padding: 8px;
+  }
+
+  .logList {
+    max-height: 150px;
+  }
+
+  .logEntry {
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .logTime {
+    font-size: 10px;
+  }
+}

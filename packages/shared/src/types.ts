@@ -145,7 +145,8 @@ export type PublicCard = GuestCard | EventCard;
 
 /** 商业街地块 */
 export type StreetSlot =
-  | { state: 'empty' }
+  | { state: 'uncleared'; clearingCost: number }
+  | { state: 'cleared' }
   | { state: 'built'; shopCard: ShopCard };
 
 // ========================================
@@ -262,7 +263,8 @@ export type ClientMessage =
   | { type: 'JOIN_ROOM'; roomCode: string; playerName: string }
   | { type: 'START_GAME' }
   | { type: 'BUY_MENU'; grade: CardGrade }
-  | { type: 'BUY_SHOP'; shopCardId: string }
+  | { type: 'BUY_SHOP'; shopCardId: string; slotIndex: number }
+  | { type: 'CLEAR_LAND'; slotIndex: number }
   | { type: 'SKIP_PURCHASE' }
   | { type: 'REMOVE_CARD'; cardId: string }
   | { type: 'SKIP_REMOVE' }

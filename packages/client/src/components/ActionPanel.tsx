@@ -5,6 +5,7 @@ import {
   PlayerActionPhase,
   CardGrade,
   MenuCard,
+  StreetSlot,
 } from '@song-merchant/shared';
 import styles from './ActionPanel.module.css';
 
@@ -30,6 +31,13 @@ function gradeLabel(grade: CardGrade): string {
   }
 }
 
+function getSlotClearingCost(slot: StreetSlot): number {
+  if (slot.state === 'uncleared') {
+    return (slot as { state: 'uncleared'; clearingCost: number }).clearingCost;
+  }
+  return 0;
+}
+
 export const ActionPanel: React.FC<ActionPanelProps> = ({
   gameState,
   isMyTurn,
@@ -39,6 +47,7 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<CardGrade | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [selectedRemoveCardId, setSelectedRemoveCardId] = useState<string | null>(null);
 
   if (!isMyTurn) {
@@ -66,10 +75,15 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
   };
 
   const handleBuyShop = () => {
-    if (selectedShopId) {
-      sendMessage({ type: 'BUY_SHOP', shopCardId: selectedShopId });
+    if (selectedShopId && selectedSlotIndex !== null) {
+      sendMessage({ type: 'BUY_SHOP', shopCardId: selectedShopId, slotIndex: selectedSlotIndex });
       setSelectedShopId(null);
+      setSelectedSlotIndex(null);
     }
+  };
+
+  const handleClearLand = (slotIndex: number) => {
+    sendMessage({ type: 'CLEAR_LAND', slotIndex });
   };
 
   const handleSkipPurchase = () => {
@@ -91,9 +105,10 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
     sendMessage({ type: 'SELECT_GUEST', cardIndex });
   };
 
-  const getShopTotalCost = (shop: { buildCost: number }) => {
-    const builtCount = me.streetSlots.filter((s) => s.state === 'built').length;
-    const clearingCost = builtCount === 0 ? 0 : builtCount + 1;
+  const getShopTotalCost = (shop: { buildCost: number }, slotIdx: number): number => {
+    const slot = me.streetSlots[slotIdx];
+    if (!slot) return shop.buildCost;
+    const clearingCost = getSlotClearingCost(slot);
     return shop.buildCost + clearingCost;
   };
 
@@ -106,6 +121,11 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
       ))}
     </div>
   );
+
+  // 可建造的地块（已清理或未开垦）
+  const availableSlots = me.streetSlots
+    .map((slot, idx) => ({ slot, idx }))
+    .filter(({ slot }) => slot.state === 'uncleared' || slot.state === 'cleared');
 
   switch (gameState.playerPhase) {
     case PlayerActionPhase.PURCHASE:
@@ -149,32 +169,98 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
           <div className={styles.divider}>或</div>
 
           <div className={styles.subSection}>
-            <div className={styles.subTitle}>买店铺牌（选店铺）</div>
+            <div className={styles.subTitle}>买店铺牌</div>
+
+            {/* 第一步：选店铺 */}
+            <div className={styles.stepLabel}>1. 选择店铺</div>
             <div className={styles.shopButtons}>
               {gameState.publicArea.shopDisplay.map((shop) => {
-                const totalCost = getShopTotalCost(shop);
-                const cantAfford = myMoney < totalCost;
+                const cantAfford = myMoney < shop.buildCost;
                 return (
                   <button
                     key={shop.id}
                     className={`${styles.shopButton} ${selectedShopId === shop.id ? styles.shopButtonActive : ''} ${cantAfford ? styles.shopButtonDisabled : ''}`}
                     onClick={() => !cantAfford && setSelectedShopId(shop.id)}
                     disabled={cantAfford}
-                    title={cantAfford ? `银子不足（需要 ${totalCost} 两，含地基费 ${totalCost - shop.buildCost} 两）` : `总费用 ${totalCost} 两（建造 ${shop.buildCost} + 地基 ${totalCost - shop.buildCost}）`}
+                    title={cantAfford ? `银子不足（建造费 ${shop.buildCost} 两）` : `建造费 ${shop.buildCost} 两`}
                   >
-                    {shop.emoji} {shop.name} ({totalCost}两)
+                    {shop.emoji} {shop.name} ({shop.buildCost}两)
                   </button>
                 );
               })}
             </div>
-            <button
-              className={styles.actionButton}
-              onClick={handleBuyShop}
-              disabled={selectedShopId === null}
-            >
-              确认购买店铺
-            </button>
+
+            {/* 第二步：选地块 */}
+            {selectedShopId && (
+              <>
+                <div className={styles.stepLabel}>2. 选择建造位置</div>
+                <div className={styles.slotGrid}>
+                  {me.streetSlots.map((slot, idx) => {
+                    const isAvailable = slot.state === 'uncleared' || slot.state === 'cleared';
+                    const clearingCost = getSlotClearingCost(slot);
+                    const totalCost = isAvailable
+                      ? gameState.publicArea.shopDisplay.find(s => s.id === selectedShopId)!.buildCost + clearingCost
+                      : 0;
+                    const canAfford = isAvailable && myMoney >= totalCost;
+
+                    return (
+                      <button
+                        key={idx}
+                        className={`${styles.slotButton} ${selectedSlotIndex === idx ? styles.slotButtonActive : ''} ${!isAvailable ? styles.slotButtonBuilt : ''} ${isAvailable && !canAfford ? styles.slotButtonDisabled : ''}`}
+                        onClick={() => isAvailable && canAfford && setSelectedSlotIndex(idx)}
+                        disabled={!isAvailable || !canAfford}
+                        title={
+                          slot.state === 'built'
+                            ? '已建造'
+                            : slot.state === 'cleared'
+                            ? `已清理，建造费 ${totalCost} 两`
+                            : `清理费 ${clearingCost} 两 + 建造费 ${gameState.publicArea.shopDisplay.find(s => s.id === selectedShopId)?.buildCost || 0} 两 = ${totalCost} 两`
+                        }
+                      >
+                        {slot.state === 'built'
+                          ? `${(slot as any).shopCard.emoji}${(slot as any).shopCard.name}`
+                          : slot.state === 'cleared'
+                          ? `${idx + 1} 可建造`
+                          : `${idx + 1} 清理${clearingCost === 0 ? '免费' : clearingCost + '两'}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  className={styles.actionButton}
+                  onClick={handleBuyShop}
+                  disabled={selectedSlotIndex === null}
+                >
+                  {selectedSlotIndex !== null && selectedShopId
+                    ? `确认建造（${getShopTotalCost(gameState.publicArea.shopDisplay.find(s => s.id === selectedShopId)!, selectedSlotIndex)}两）`
+                    : '确认购买店铺'}
+                </button>
+              </>
+            )}
           </div>
+
+          {/* 清理土地选项 */}
+          {me.streetSlots.some(s => s.state === 'uncleared' && getSlotClearingCost(s) > 0 && myMoney >= getSlotClearingCost(s)) && (
+            <div className={styles.subSection}>
+              <div className={styles.subTitle}>单独清理土地</div>
+              <div className={styles.slotGrid}>
+                {me.streetSlots.map((slot, idx) => {
+                  if (slot.state !== 'uncleared') return null;
+                  const cost = getSlotClearingCost(slot);
+                  if (cost === 0 || myMoney < cost) return null;
+                  return (
+                    <button
+                      key={idx}
+                      className={styles.clearButton}
+                      onClick={() => handleClearLand(idx)}
+                    >
+                      {idx + 1}号地 清理{cost}两
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <button className={styles.skipButton} onClick={handleSkipPurchase}>
             跳过购买
@@ -239,20 +325,8 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
           <div className={styles.subTitle}>选择客人（从左到右，跳过需付1两/位）</div>
           <div className={styles.guestButtons}>
             {gameState.publicArea.publicCards.map((card, idx) => {
-              const skipFee = idx; // 第 N 个需付 N 两
+              const skipFee = idx;
               const canAfford = myMoney >= skipFee;
-              if ('effect' in card) {
-                return (
-                  <button
-                    key={card.id}
-                    className={styles.eventButton}
-                    onClick={() => handleSelectGuest(idx)}
-                    disabled={!canAfford}
-                  >
-                    {card.name} (事件){skipFee > 0 ? ` -${skipFee}两` : ''}
-                  </button>
-                );
-              }
               return (
                 <button
                   key={card.id}
@@ -262,7 +336,7 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
                   title={skipFee > 0 ? `跳过费 ${skipFee} 两` : undefined}
                 >
                   <span className={styles.guestSelectName}>{card.name}</span>
-                  <span className={styles.guestSelectDish}>{card.dishCount} 道</span>
+                  <span className={styles.guestSelectDish}>{'dishCount' in card ? card.dishCount : 0} 道</span>
                   {skipFee > 0 && <span className={styles.skipFee}>-{skipFee}两</span>}
                 </button>
               );

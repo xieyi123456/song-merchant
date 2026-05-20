@@ -52,7 +52,10 @@ export function validateAction(
       return validateBuyMenu(state, playerIndex, action.grade);
 
     case 'BUY_SHOP':
-      return validateBuyShop(state, playerIndex, action.shopCardId);
+      return validateBuyShop(state, playerIndex, action.shopCardId, action.slotIndex);
+
+    case 'CLEAR_LAND':
+      return validateClearLand(state, playerIndex, action.slotIndex);
 
     case 'SKIP_PURCHASE':
       return validatePhase(state, PlayerActionPhase.PURCHASE);
@@ -126,6 +129,7 @@ function validateBuyShop(
   state: GameState,
   playerIndex: number,
   shopCardId: string,
+  slotIndex: number,
 ): ValidationResult {
   const phaseResult = validatePhase(state, PlayerActionPhase.PURCHASE);
   if (!phaseResult.valid) return phaseResult;
@@ -137,20 +141,52 @@ function validateBuyShop(
     return { valid: false, error: '店铺不存在于展示区' };
   }
 
-  const emptySlots = player.streetSlots.filter((s) => s.state === 'empty');
-  if (emptySlots.length === 0) {
-    return { valid: false, error: '商业街已满，无法建造新店铺' };
+  if (slotIndex < 0 || slotIndex >= player.streetSlots.length) {
+    return { valid: false, error: `地块索引不合法：${slotIndex}` };
   }
 
-  const builtCount = player.streetSlots.filter((s) => s.state === 'built').length;
-  const clearingCost = builtCount === 0 ? 0 : builtCount + 1;
+  const slot = player.streetSlots[slotIndex];
+  if (slot.state !== 'uncleared' && slot.state !== 'cleared') {
+    return { valid: false, error: '该地块无法建造' };
+  }
+
+  const clearingCost = slot.state === 'uncleared'
+    ? (slot as { state: 'uncleared'; clearingCost: number }).clearingCost
+    : 0;
   const totalCost = shopCard.buildCost + clearingCost;
 
   if (player.money < totalCost) {
     return {
       valid: false,
-      error: `银钱不足，需要 ${totalCost} 两（建造 ${shopCard.buildCost} + 地基 ${clearingCost}），当前 ${player.money} 两`,
+      error: `银钱不足，需要 ${totalCost} 两（建造 ${shopCard.buildCost} + 清理 ${clearingCost}），当前 ${player.money} 两`,
     };
+  }
+
+  return { valid: true };
+}
+
+function validateClearLand(
+  state: GameState,
+  playerIndex: number,
+  slotIndex: number,
+): ValidationResult {
+  const phaseResult = validatePhase(state, PlayerActionPhase.PURCHASE);
+  if (!phaseResult.valid) return phaseResult;
+
+  const player = state.players[playerIndex];
+
+  if (slotIndex < 0 || slotIndex >= player.streetSlots.length) {
+    return { valid: false, error: `地块索引不合法：${slotIndex}` };
+  }
+
+  const slot = player.streetSlots[slotIndex];
+  if (slot.state !== 'uncleared') {
+    return { valid: false, error: '该地块不需要清理' };
+  }
+
+  const clearingCost = (slot as { state: 'uncleared'; clearingCost: number }).clearingCost;
+  if (player.money < clearingCost) {
+    return { valid: false, error: `银钱不足，清理需要 ${clearingCost} 两，当前 ${player.money} 两` };
   }
 
   return { valid: true };

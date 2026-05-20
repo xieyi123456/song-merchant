@@ -68,3 +68,16 @@
   color: #e08080;
   margin-bottom: 4px;
 }
+
+/* 手机端适配 */
+@media (max-width: 768px) {
+  .bar {
+    gap: 6px;
+    padding: 6px 8px;
+    flex-wrap: wrap;
+  }
+
+  .guestRow {
+    padding: 3px 6px;
+  }
+}

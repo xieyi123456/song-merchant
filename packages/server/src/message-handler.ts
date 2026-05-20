@@ -83,6 +83,7 @@ export function handleMessage(
 
     case 'BUY_MENU':
     case 'BUY_SHOP':
+    case 'CLEAR_LAND':
     case 'SKIP_PURCHASE':
     case 'REMOVE_CARD':
     case 'SKIP_REMOVE':

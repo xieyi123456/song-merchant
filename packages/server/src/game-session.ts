@@ -12,8 +12,10 @@ import {
 } from '@song-merchant/shared';
 import {
   initializeGame,
+  extractInitialAutoEvents,
   buyMenuCard,
   buyShopCard,
+  clearLand,
   skipPurchase,
   removeCard,
   skipRemove,
@@ -46,6 +48,20 @@ export class GameSession {
     this.state = initializeGame(this.roomId, playerNames);
     this.startTimer();
     this.broadcastLog('系统', 'game-start', `游戏开始！共 ${this.state.players.length} 位玩家`);
+
+    // 广播初始化时自动触发的事件牌
+    const initialAutoEvents = extractInitialAutoEvents(this.state);
+    for (const evt of initialAutoEvents.triggeredEvents) {
+      const scopeLabel = 'all';
+      this.broadcastEvent(
+        evt.eventCard.name,
+        evt.eventCard.description,
+        scopeLabel,
+        '系统',
+      );
+      this.broadcastLog('系统', 'system', `事件牌【${evt.eventCard.name}】自动触发：${evt.eventCard.description}`);
+    }
+
     this.broadcast();
     return this.state;
   }
@@ -89,8 +105,20 @@ export class GameSession {
             (s: ShopCard) => s.id === action.shopCardId
           );
           const shopName = shopCard ? `${shopCard.emoji}${shopCard.name}` : '店铺';
-          this.state = buyShopCard(this.state, playerIndex, action.shopCardId);
-          this.broadcastLog(playerName, playerId, `建造了 ${shopName}（${shopCard?.buildCost || '?'}两）`);
+          const slotIdx = action.slotIndex ?? 0;
+          const slot = this.state.players[playerIndex].streetSlots[slotIdx];
+          const clearingCost = slot && slot.state === 'uncleared' ? (slot as any).clearingCost : 0;
+          const costText = clearingCost > 0 ? `（建造${shopCard?.buildCost || '?'}两 + 清理${clearingCost}两）` : `（${shopCard?.buildCost || '?'}两）`;
+          this.state = buyShopCard(this.state, playerIndex, action.shopCardId, slotIdx);
+          this.broadcastLog(playerName, playerId, `建造了 ${shopName}${costText}`);
+          break;
+        }
+        case 'CLEAR_LAND': {
+          const slotIdx = action.slotIndex ?? 0;
+          const slot = this.state.players[playerIndex].streetSlots[slotIdx];
+          const clearingCost = slot && slot.state === 'uncleared' ? (slot as any).clearingCost : 0;
+          this.state = clearLand(this.state, playerIndex, slotIdx);
+          this.broadcastLog(playerName, playerId, `花费 ${clearingCost} 两清理了第 ${slotIdx + 1} 块土地`);
           break;
         }
         case 'SKIP_PURCHASE':
@@ -112,18 +140,19 @@ export class GameSession {
           const result = selectGuest(this.state, playerIndex, action.cardIndex);
           this.state = result.state;
 
-          if (result.eventCard) {
-            // 事件牌：全局广播
-            const scopeLabel = { self: '自己', all: '所有人', next_player: '下一位玩家' }[result.eventCard.effect.scope] || result.eventCard.effect.scope;
+          // 广播补牌时自动触发的事件
+          for (const evt of result.autoEvents.triggeredEvents) {
             this.broadcastEvent(
-              result.eventCard.name,
-              result.eventCard.description,
-              scopeLabel,
-              playerName
+              evt.eventCard.name,
+              evt.eventCard.description,
+              'all',
+              playerName,
             );
-            this.broadcastLog(playerName, playerId, `触发了事件【${result.eventCard.name}】：${result.eventCard.description}（影响：${scopeLabel}）`);
-          } else {
-            // 客人牌：发送结算详情
+            this.broadcastLog('系统', 'system', `事件牌【${evt.eventCard.name}】自动触发：${evt.eventCard.description}`);
+          }
+
+          // 客人牌结算
+          if (result.result.flippedCards.length > 0) {
             const guest = card as GuestCard;
             const synergyDetail = this.buildSynergyDetail(playerIndex, guest);
             const gm = result.result.gamblingModifier || 0;
@@ -144,6 +173,9 @@ export class GameSession {
               synergyDetail,
               gamblingModifier: gm,
             });
+          } else if (result.autoEvents.triggeredEvents.length === 0) {
+            // 休养生息等情况
+            this.broadcastLog(playerName, playerId, '休养生息，跳过经营并获得免费菜牌');
           }
           break;
         }

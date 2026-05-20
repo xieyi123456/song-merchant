@@ -25,7 +25,7 @@ export const VICTORY_SHOPS = 8;
 export const VICTORY_MONEY = 50;
 export const STREET_SLOT_COUNT = 8;
 export const SKIP_GUEST_FEE = 1;
-export const STARTING_MONEY = [5, 6, 7, 8];  // 按玩家顺序
+export const STARTING_MONEY = [10, 10, 10, 10];
 
 // ========================================
 // 菜单牌数据

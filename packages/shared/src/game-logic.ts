@@ -37,6 +37,52 @@ import {
 } from './constants.js';
 
 // ========================================
+// 事件牌自动解析
+// ========================================
+
+/** 自动触发事件牌结果 */
+export interface AutoEventResult {
+  triggeredEvents: Array<{
+    eventCard: EventCard;
+    triggeredByPlayerId: string;
+  }>;
+}
+
+/** 确保公共牌区只有客人牌，事件牌自动对所有人生效并补牌 */
+export function resolveEventCards(
+  state: GameState,
+  triggeredByPlayerIndex: number,
+): { state: GameState; autoEvents: AutoEventResult } {
+  const newState = deepClone(state);
+  const autoEvents: AutoEventResult = { triggeredEvents: [] };
+  const playerId = newState.players[triggeredByPlayerIndex].id;
+
+  let hasEvent = true;
+  while (hasEvent) {
+    hasEvent = false;
+    for (let i = 0; i < newState.publicArea.publicCards.length; i++) {
+      const card = newState.publicArea.publicCards[i];
+      if (!isGuestCard(card)) {
+        const eventCard = card as EventCard;
+        applyEventEffect(newState, eventCard, triggeredByPlayerIndex);
+        autoEvents.triggeredEvents.push({
+          eventCard: { ...eventCard },
+          triggeredByPlayerId: playerId,
+        });
+        newState.publicArea.publicCards.splice(i, 1);
+        if (newState.publicArea.guestEventDeck.length > 0) {
+          newState.publicArea.publicCards.splice(i, 0, newState.publicArea.guestEventDeck.shift()!);
+        }
+        hasEvent = true;
+        break;
+      }
+    }
+  }
+
+  return { state: newState, autoEvents };
+}
+
+// ========================================
 // 工具函数
 // ========================================
 
@@ -51,9 +97,9 @@ export function shuffle<T>(array: T[]): T[] {
 }
 
 /** 计算清理地基费用（第1个免费，第n个=n两） */
-export function getClearingCost(builtCount: number): number {
-  if (builtCount === 0) return 0;
-  return builtCount + 1;
+export function getClearingCost(slotIndex: number): number {
+  if (slotIndex === 0) return 0;
+  return slotIndex + 1;
 }
 
 // ========================================
@@ -83,7 +129,10 @@ export function initializeGame(
       library: shuffle(library),
       discard: [],
       removed: [],
-      streetSlots: Array.from({ length: STREET_SLOT_COUNT }, () => ({ state: 'empty' as const })),
+      streetSlots: Array.from({ length: STREET_SLOT_COUNT }, (_, i) => ({
+        state: 'uncleared' as const,
+        clearingCost: getClearingCost(i),
+      })),
     };
   });
 
@@ -115,7 +164,7 @@ export function initializeGame(
     guestEventDeck: shuffledGuestEventDeck,
   };
 
-  return {
+  const initState: GameState = {
     roomId,
     roundNumber: 1,
     roundPhase: RoundPhase.PLAYER_TURNS,
@@ -130,6 +179,20 @@ export function initializeGame(
     triggeringPlayerId: null,
     activeEffects: [],
   };
+
+  // 确保初始公共牌区只有客人牌，事件牌自动对所有人生效
+  const { state: resolvedState, autoEvents } = resolveEventCards(initState, 0);
+  // 将自动触发的事件存储，供服务端广播
+  (resolvedState as any).__initialAutoEvents = autoEvents;
+
+  return resolvedState;
+}
+
+/** 提取初始化时自动触发的事件（供服务端使用） */
+export function extractInitialAutoEvents(state: GameState): AutoEventResult {
+  const result = (state as any).__initialAutoEvents as AutoEventResult | undefined;
+  delete (state as any).__initialAutoEvents;
+  return result || { triggeredEvents: [] };
 }
 
 // ========================================
@@ -161,8 +224,8 @@ export function buyMenuCard(state: GameState, playerIndex: number, grade: CardGr
   return newState;
 }
 
-/** 买店铺牌 */
-export function buyShopCard(state: GameState, playerIndex: number, shopCardId: string): GameState {
+/** 买店铺牌（指定建造地块） */
+export function buyShopCard(state: GameState, playerIndex: number, shopCardId: string, slotIndex: number): GameState {
   const newState = deepClone(state);
   const player = newState.players[playerIndex];
   const displayIndex = newState.publicArea.shopDisplay.findIndex((s) => s.id === shopCardId);
@@ -172,21 +235,22 @@ export function buyShopCard(state: GameState, playerIndex: number, shopCardId: s
   }
 
   const shopCard = newState.publicArea.shopDisplay[displayIndex];
-  const builtCount = player.streetSlots.filter((s) => s.state === 'built').length;
-  const clearingCost = getClearingCost(builtCount);
+  const slot = player.streetSlots[slotIndex];
+
+  // 只有未开垦的地块才能建造
+  if (!slot || (slot.state !== 'uncleared' && slot.state !== 'cleared')) {
+    return newState;
+  }
+
+  const clearingCost = slot.state === 'uncleared' ? (slot as { state: 'uncleared'; clearingCost: number }).clearingCost : 0;
   const totalCost = shopCard.buildCost + clearingCost;
 
   if (player.money < totalCost) {
     return newState;
   }
 
-  const emptySlotIndex = player.streetSlots.findIndex((s) => s.state === 'empty');
-  if (emptySlotIndex === -1) {
-    return newState;
-  }
-
   player.money -= totalCost;
-  player.streetSlots[emptySlotIndex] = { state: 'built', shopCard: { ...shopCard } };
+  player.streetSlots[slotIndex] = { state: 'built', shopCard: { ...shopCard } };
 
   newState.publicArea.shopDisplay.splice(displayIndex, 1);
   if (newState.publicArea.shopDeck.length > 0) {
@@ -195,6 +259,27 @@ export function buyShopCard(state: GameState, playerIndex: number, shopCardId: s
 
   newState.playerPhase = PlayerActionPhase.PREPARATION;
   newState.phaseStartTime = Date.now();
+
+  return newState;
+}
+
+/** 清理土地 */
+export function clearLand(state: GameState, playerIndex: number, slotIndex: number): GameState {
+  const newState = deepClone(state);
+  const player = newState.players[playerIndex];
+  const slot = player.streetSlots[slotIndex];
+
+  if (!slot || slot.state !== 'uncleared') {
+    return newState;
+  }
+
+  const clearingCost = (slot as { state: 'uncleared'; clearingCost: number }).clearingCost;
+  if (player.money < clearingCost) {
+    return newState;
+  }
+
+  player.money -= clearingCost;
+  player.streetSlots[slotIndex] = { state: 'cleared' };
 
   return newState;
 }
@@ -362,37 +447,21 @@ export function calculateShopBonus(
   return { bonus, synergy: synergyTotal, skillIncome, skillDetail: skillDetails.join('；') };
 }
 
-/** 经营：选客人/事件 */
+/** 经营：选客人（事件牌已在外部自动解析，此处只处理客人牌） */
 export function selectGuest(
   state: GameState,
   playerIndex: number,
   cardIndex: number,
-): { state: GameState; result: TurnResult; eventCard?: EventCard } {
+): { state: GameState; result: TurnResult; autoEvents: AutoEventResult } {
   const newState = deepClone(state);
   const player = newState.players[playerIndex];
   const card = newState.publicArea.publicCards[cardIndex];
 
-  if (!card) {
+  if (!card || !isGuestCard(card)) {
     return {
       state: newState,
       result: { dishIncome: 0, shopBonus: 0, synergyBonus: 0, flippedCards: [] },
-    };
-  }
-
-  // 事件牌处理
-  if (!isGuestCard(card)) {
-    const eventCard = card as EventCard;
-    applyEventEffect(newState, eventCard, playerIndex);
-    newState.publicArea.publicCards.splice(cardIndex, 1);
-    if (newState.publicArea.guestEventDeck.length > 0) {
-      newState.publicArea.publicCards.splice(cardIndex, 0, newState.publicArea.guestEventDeck.shift()!);
-    }
-    newState.playerPhase = PlayerActionPhase.DONE;
-    newState.phaseStartTime = Date.now();
-    return {
-      state: newState,
-      result: { dishIncome: 0, shopBonus: 0, synergyBonus: 0, flippedCards: [] },
-      eventCard,
+      autoEvents: { triggeredEvents: [] },
     };
   }
 
@@ -403,7 +472,6 @@ export function selectGuest(
     (ef) => ef.effect.type === 'skip_and_free_card',
   );
   if (skipEffect) {
-    // 给一张随机菜牌
     const allGrades = [CardGrade.ONE, CardGrade.TWO, CardGrade.THREE, CardGrade.FOUR];
     const randomGrade = allGrades[Math.floor(Math.random() * allGrades.length)];
     const supply = newState.publicArea.menuSupply[randomGrade];
@@ -411,7 +479,6 @@ export function selectGuest(
       const freeCard = supply.shift()!;
       player.discard.push(freeCard);
     }
-    // 移除效果
     newState.activeEffects = newState.activeEffects.filter(
       (ef) => ef.effect.type !== 'skip_and_free_card',
     );
@@ -419,11 +486,14 @@ export function selectGuest(
     if (newState.publicArea.guestEventDeck.length > 0) {
       newState.publicArea.publicCards.splice(cardIndex, 0, newState.publicArea.guestEventDeck.shift()!);
     }
-    newState.playerPhase = PlayerActionPhase.DONE;
-    newState.phaseStartTime = Date.now();
+    // 补牌后自动解析事件牌
+    const { state: resolvedState, autoEvents } = resolveEventCards(newState, playerIndex);
+    resolvedState.playerPhase = PlayerActionPhase.DONE;
+    resolvedState.phaseStartTime = Date.now();
     return {
-      state: newState,
+      state: resolvedState,
       result: { dishIncome: 0, shopBonus: 0, synergyBonus: 0, flippedCards: [] },
+      autoEvents,
     };
   }
 
@@ -510,11 +580,13 @@ export function selectGuest(
     newState.publicArea.publicCards.splice(cardIndex, 0, newState.publicArea.guestEventDeck.shift()!);
   }
 
-  newState.playerPhase = PlayerActionPhase.DONE;
-  newState.phaseStartTime = Date.now();
+  // 补牌后自动解析事件牌
+  const { state: resolvedState, autoEvents } = resolveEventCards(newState, playerIndex);
+  resolvedState.playerPhase = PlayerActionPhase.DONE;
+  resolvedState.phaseStartTime = Date.now();
 
   return {
-    state: newState,
+    state: resolvedState,
     result: {
       dishIncome,
       shopBonus,
@@ -522,6 +594,7 @@ export function selectGuest(
       flippedCards: flipResult.flipped,
       gamblingModifier: skillIncome,
     },
+    autoEvents,
   };
 }
 

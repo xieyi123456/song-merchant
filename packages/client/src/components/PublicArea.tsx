@@ -6,7 +6,6 @@ import {
   ShopCard,
   ShopType,
   GuestCard,
-  EventCard,
 } from '@song-merchant/shared';
 import styles from './PublicArea.module.css';
 
@@ -25,10 +24,6 @@ const SHOP_INFO: Record<string, { emoji: string; name: string }> = {
 
 interface PublicAreaProps {
   gameState: PublicGameState;
-}
-
-function isEventCard(card: GuestCard | EventCard): card is EventCard {
-  return 'effect' in card;
 }
 
 function gradeLabel(grade: CardGrade): string {
@@ -96,17 +91,13 @@ export const PublicArea: React.FC<PublicAreaProps> = ({ gameState }) => {
         </div>
       </div>
 
-      {/* 公共牌 */}
+      {/* 客人牌 */}
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>公共牌</h3>
+        <h3 className={styles.sectionTitle}>客人牌</h3>
         <div className={styles.publicCards}>
-          {publicArea.publicCards.map((card, idx) =>
-            isEventCard(card) ? (
-              <EventCardItem key={card.id} card={card} />
-            ) : (
-              <GuestCardItem key={card.id} card={card} />
-            )
-          )}
+          {publicArea.publicCards.map((card, idx) => (
+            <GuestCardItem key={card.id} card={card as GuestCard} />
+          ))}
         </div>
       </div>
     </div>
@@ -154,15 +145,6 @@ const GuestCardItem: React.FC<{ card: GuestCard }> = ({ card }) => {
           ))
         )}
       </div>
-    </div>
-  );
-};
-
-const EventCardItem: React.FC<{ card: EventCard }> = ({ card }) => {
-  return (
-    <div className={styles.eventCard}>
-      <div className={styles.eventName}>{card.name}</div>
-      <div className={styles.eventDesc}>{card.description}</div>
     </div>
   );
 };
