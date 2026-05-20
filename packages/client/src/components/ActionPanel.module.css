@@ -188,3 +188,98 @@
 .waitingIcon {
   font-size: 16px;
 }
+
+/* 银子信息 */
+.moneyInfo {
+  font-size: 14px;
+  color: #d4a030;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+/* 余额不足的店铺按钮 */
+.shopButtonDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 品级按钮禁用状态 */
+.gradeButton:disabled,
+.shopButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 事件效果横幅 */
+.effectsBanner {
+  background: #2a1a1a;
+  border: 1px solid #4a2a2a;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.effectItem {
+  font-size: 11px;
+  color: #e08080;
+  line-height: 1.6;
+}
+
+/* 备菜阶段 - 牌列表 */
+.cardList {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.cardItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #1a1a22;
+  border: 1px solid #2a2a33;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #bbb;
+  text-align: left;
+}
+
+.cardItem:hover:not(:disabled) {
+  background: #222233;
+}
+
+.cardItemActive {
+  background: #2a2a3a;
+  border-color: #6a6aaa;
+  color: #e0e0ff;
+}
+
+.cardDishName {
+  flex: 1;
+}
+
+.cardGradeTag {
+  font-size: 10px;
+  color: #888;
+  padding: 1px 4px;
+  background: #252530;
+  border-radius: 2px;
+}
+
+.cardIncomeTag {
+  font-size: 10px;
+  color: #6ae060;
+}
+
+/* 跳过费标签 */
+.skipFee {
+  font-size: 10px;
+  color: #e08060;
+  padding: 1px 4px;
+  background: #2a1a1a;
+  border-radius: 2px;
+}

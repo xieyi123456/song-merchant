@@ -1,12 +1,13 @@
 // packages/client/src/pages/GamePage.tsx
 import React from 'react';
-import { PublicGameState } from '@song-merchant/shared';
+import { PublicGameState, MenuCard } from '@song-merchant/shared';
 import { StatusBar } from '../components/StatusBar';
 import { PublicArea } from '../components/PublicArea';
 import { ActionPanel } from '../components/ActionPanel';
 import { RevenueEstimate } from '../components/RevenueEstimate';
 import { PlayerStreet } from '../components/PlayerStreet';
-import { GameLog } from '../components/GameLog';
+import { GameLog, LogEntry } from '../components/GameLog';
+import { DiceModal } from '../components/DiceModal';
 import styles from './GamePage.module.css';
 
 interface GamePageProps {
@@ -14,6 +15,10 @@ interface GamePageProps {
   gameState: PublicGameState | null;
   playerId: string;
   roomCode: string;
+  logs: LogEntry[];
+  prepareCards: MenuCard[];
+  lastTurnResult: any;
+  onTurnResultDone: () => void;
 }
 
 export const GamePage: React.FC<GamePageProps> = ({
@@ -21,6 +26,10 @@ export const GamePage: React.FC<GamePageProps> = ({
   gameState,
   playerId,
   roomCode,
+  logs,
+  prepareCards,
+  lastTurnResult,
+  onTurnResultDone,
 }) => {
   if (!gameState) {
     return (
@@ -33,28 +42,37 @@ export const GamePage: React.FC<GamePageProps> = ({
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const isMyTurn = currentPlayer?.id === playerId;
 
+  const showDice = lastTurnResult && lastTurnResult.gamblingModifier !== undefined && lastTurnResult.gamblingModifier !== 0;
+
   return (
     <div className={styles.container}>
-      {/* 第 1 行 — 顶部状态栏 */}
+      {showDice && (
+        <DiceModal
+          skillIncome={lastTurnResult.gamblingModifier}
+          totalIncome={lastTurnResult.dishIncome + lastTurnResult.shopBonus + lastTurnResult.synergyBonus + lastTurnResult.gamblingModifier}
+          skillDetail={lastTurnResult.skillDetail || ''}
+          onComplete={onTurnResultDone}
+        />
+      )}
+
       <StatusBar
         gameState={gameState}
         roomCode={roomCode}
       />
 
-      {/* 第 2 行 — 公共区域 + 操作面板 */}
       <div className={styles.publicRow}>
         <PublicArea gameState={gameState} />
         <ActionPanel
           gameState={gameState}
           isMyTurn={isMyTurn}
           sendMessage={sendMessage}
+          playerId={playerId}
+          prepareCards={prepareCards}
         />
       </div>
 
-      {/* 第 3 行 — 收益预估条（经营阶段显示） */}
       <RevenueEstimate gameState={gameState} isMyTurn={isMyTurn} />
 
-      {/* 主体 — 所有玩家商业街 */}
       <div className={styles.streetsSection}>
         {gameState.players.map((player, idx) => (
           <PlayerStreet
@@ -68,8 +86,7 @@ export const GamePage: React.FC<GamePageProps> = ({
         ))}
       </div>
 
-      {/* 底部 — 游戏日志 */}
-      <GameLog gameState={gameState} />
+      <GameLog gameState={gameState} logs={logs} />
     </div>
   );
 };

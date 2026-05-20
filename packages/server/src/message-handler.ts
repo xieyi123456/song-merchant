@@ -21,6 +21,8 @@ export function handleMessage(
           type: 'ROOM_CREATED',
           roomCode: result.roomCode,
           playerId: result.playerId,
+          players: [playerName],
+          maxPlayers,
         })
       );
       break;

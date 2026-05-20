@@ -1,0 +1,85 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #1a1a22;
+  border: 2px solid #3a3a4a;
+  border-radius: 12px;
+  padding: 30px 50px;
+  text-align: center;
+  min-width: 280px;
+}
+
+.rolling {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.dice {
+  font-size: 72px;
+  line-height: 1;
+  animation: shake 0.1s infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg) scale(1.1); }
+  75% { transform: rotate(-10deg) scale(1.1); }
+}
+
+.rollingText {
+  font-size: 16px;
+  color: #d4a030;
+  font-weight: 600;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.resultDice {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.resultText {
+  font-size: 18px;
+  color: #e0e0e0;
+}
+
+.positive {
+  color: #6ae060;
+  font-weight: 700;
+}
+
+.negative {
+  color: #e06060;
+  font-weight: 700;
+}
+
+.totalText {
+  font-size: 14px;
+  color: #888;
+  margin-top: 4px;
+}
+
+.totalValue {
+  color: #d4a030;
+  font-weight: 700;
+  font-size: 18px;
+}

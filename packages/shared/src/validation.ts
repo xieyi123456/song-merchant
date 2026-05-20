@@ -12,7 +12,11 @@ import {
   SHOPS_DISPLAY_COUNT,
   VICTORY_SHOPS,
   VICTORY_MONEY,
+  SKIP_GUEST_FEE,
+  INITIAL_MENU_PER_PLAYER,
 } from './constants.js';
+
+const MIN_MENU_COUNT = INITIAL_MENU_PER_PLAYER.reduce((sum, c) => sum + c.count, 0);
 
 export interface ValidationResult {
   valid: boolean;
@@ -170,6 +174,12 @@ function validateRemoveCard(
     return { valid: false, error: `银钱不足，备菜剔除需要 ${REMOVE_COST} 两，当前 ${player.money} 两` };
   }
 
+  // 检查剔除后是否低于下限
+  const totalCount = player.library.length + player.discard.length;
+  if (totalCount <= MIN_MENU_COUNT) {
+    return { valid: false, error: `菜单牌不能低于 ${MIN_MENU_COUNT} 张（当前 ${totalCount} 张）` };
+  }
+
   const inLibrary = player.library.some((c) => c.id === cardId);
   const inDiscard = player.discard.some((c) => c.id === cardId);
 
@@ -197,6 +207,18 @@ function validateSelectGuest(
       valid: false,
       error: `客人牌索引不合法：${cardIndex}，有效范围 0-${state.publicArea.publicCards.length - 1}`,
     };
+  }
+
+  // 跳过费：选第 N 个需付 N 两
+  const skipFee = cardIndex * SKIP_GUEST_FEE;
+  if (skipFee > 0) {
+    const player = state.players[playerIndex];
+    if (player.money < skipFee) {
+      return {
+        valid: false,
+        error: `银子不足，跳过 ${cardIndex} 位客人需 ${skipFee} 两，当前 ${player.money} 两`,
+      };
+    }
   }
 
   return { valid: true };

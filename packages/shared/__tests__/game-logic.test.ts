@@ -169,7 +169,7 @@ describe('initializeGame', () => {
     const state = initializeGame('room-1', [
       { id: 'p1', name: '玩家1' },
     ]);
-    expect(state.players[0].money).toBe(STARTING_MONEY);
+    expect(state.players[0].money).toBe(STARTING_MONEY[0]);
   });
 
   it('店铺展示区应有 4 张牌', () => {
@@ -260,6 +260,7 @@ describe('buyShopCard', () => {
     let state = initializeGame('room-1', [
       { id: 'p1', name: '玩家1' },
     ]);
+    state.players[0].money = 100; // 确保足够买任何店铺
     const player = state.players[0];
     const shopCard = state.publicArea.shopDisplay[0];
     const buildCost = shopCard.buildCost;
@@ -293,6 +294,7 @@ describe('buyShopCard', () => {
     let state = initializeGame('room-1', [
       { id: 'p1', name: '玩家1' },
     ]);
+    state.players[0].money = 100;
     const shopCard = state.publicArea.shopDisplay[0];
 
     state = buyShopCard(state, 0, shopCard.id);
@@ -531,7 +533,7 @@ describe('checkVictory', () => {
     for (let i = 0; i < VICTORY_SHOPS; i++) {
       state.players[0].streetSlots[i] = {
         state: 'built',
-        shopCard: makeShopCard(`s${i}`, ShopType.TEAHOUSE, 3, 2),
+        shopCard: makeShopCard(`s${i}`, ShopType.DRINKS, 3, 1),
       };
     }
 

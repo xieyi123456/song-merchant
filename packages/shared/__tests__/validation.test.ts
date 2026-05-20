@@ -132,6 +132,8 @@ describe('validateAction', () => {
       const state = makeTestState({
         playerPhase: PlayerActionPhase.PURCHASE,
       });
+      // 确保玩家有足够的钱
+      state.players[0].money = 100;
       const shopCardId = state.publicArea.shopDisplay[0].id;
 
       const result = validateAction(state, 0, { type: 'BUY_SHOP', shopCardId });
@@ -171,7 +173,7 @@ describe('validateAction', () => {
       state.players[0].money = 100;
       state.players[0].streetSlots = state.players[0].streetSlots.map(() => ({
         state: 'built' as const,
-        shopCard: makeShopCard('s-fill', ShopType.TEAHOUSE, 3, 2),
+        shopCard: makeShopCard('s-fill', ShopType.DRINKS, 3, 1),
       }));
 
       const shopCardId = state.publicArea.shopDisplay[0].id;
@@ -217,6 +219,8 @@ describe('validateAction', () => {
       const state = makeTestState({
         playerPhase: PlayerActionPhase.PREPARATION,
       });
+      // 给玩家额外牌，使其能剔除
+      state.players[0].library.push(makeMenuCard('extra-1', CardGrade.FOUR, 1, 1));
       const cardId = state.players[0].library[0].id;
 
       const result = validateAction(state, 0, { type: 'REMOVE_CARD', cardId });
@@ -241,6 +245,8 @@ describe('validateAction', () => {
       const state = makeTestState({
         playerPhase: PlayerActionPhase.PREPARATION,
       });
+      // 给玩家额外牌，避免数量限制
+      state.players[0].library.push(makeMenuCard('extra-2', CardGrade.FOUR, 1, 1));
 
       const result = validateAction(state, 0, { type: 'REMOVE_CARD', cardId: 'nonexistent' });
 

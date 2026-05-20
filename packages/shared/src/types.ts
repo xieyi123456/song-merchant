@@ -12,16 +12,16 @@ export enum CardGrade {
 
 /** 店铺类型 */
 export enum ShopType {
-  TEAHOUSE = 'TEAHOUSE',       // 茶馆
-  WINEHOUSE = 'WINEHOUSE',     // 酒肆
-  SILK = 'SILK',               // 丝绸铺
-  PORCELAIN = 'PORCELAIN',     // 瓷器店
   DRINKS = 'DRINKS',           // 饮子铺
-  CUJU = 'CUJU',               // 蹴鞠场
-  GAMBLING = 'GAMBLING',       // 关扑铺
-  FOOD = 'FOOD',               // 饮食铺
-  PAINTING = 'PAINTING',       // 书画斋
+  PORCELAIN = 'PORCELAIN',     // 瓷器铺
+  WINEHOUSE = 'WINEHOUSE',     // 酒肆
   BOOKSHOP = 'BOOKSHOP',       // 书坊
+  SILK = 'SILK',               // 绸缎庄
+  JEWELRY = 'JEWELRY',         // 首饰铺
+  FORTUNE = 'FORTUNE',         // 卦肆
+  GAMBLING = 'GAMBLING',       // 官扑铺
+  CUJU = 'CUJU',               // 蹴鞠场
+  THEATER = 'THEATER',         // 勾栏瓦肆
 }
 
 /** 玩家行动阶段 */
@@ -58,6 +58,19 @@ export interface SynergyBonus {
   bonus: number;
 }
 
+/** 店铺技能类型 */
+export type ShopSkillType = 'dice_check' | 'dice_income' | 'per_shop_income';
+
+/** 店铺技能 */
+export interface ShopSkill {
+  name: string;
+  description: string;
+  type: ShopSkillType;
+  diceThreshold?: number;   // dice_check: 骰子≥此值触发
+  diceBonus?: number;       // dice_check: 触发后的奖励
+  bonusPerShop?: number;    // per_shop_income: 每家店铺的额外收入
+}
+
 /** 店铺牌 */
 export interface ShopCard {
   id: string;
@@ -65,9 +78,9 @@ export interface ShopCard {
   name: string;
   emoji: string;
   buildCost: number;
-  bonusIncome: number;           // 匹配客人时的额外收入
+  bonusIncome: number;           // 逛街基础收入
   synergy: SynergyBonus[];       // 联动加成
-  specialEffect?: string;        // 特殊效果描述
+  skill?: ShopSkill;             // 专属技能
 }
 
 /** 逛街偏好 */
@@ -87,9 +100,23 @@ export interface GuestCard {
 
 /** 事件牌效果 */
 export interface EventEffect {
-  type: 'income_modifier' | 'skip_turn' | 'draw_extra' | 'discount';
+  type:
+    | 'income_modifier'    // 收入修正
+    | 'skip_turn'          // 跳过回合
+    | 'draw_extra'         // 额外翻牌
+    | 'discount'           // 购买折扣
+    | 'give_money'         // 直接给钱
+    | 'dice_money'         // 骰子得钱
+    | 'shop_income_reduce' // 店铺基础收入减少
+    | 'tax_per_shop'       // 每店铺缴税
+    | 'dish_income_boost'  // 菜品收入增加
+    | 'swap_cards'         // 弃牌换新牌
+    | 'auto_max_dice'      // 骰子视为最大值
+    | 'skip_and_free_card' // 跳过经营+免费菜牌
+    | 'per_shop_bonus';    // 每店铺额外收入
   value: number;
   scope: 'self' | 'all' | 'next_player';
+  duration?: 'instant' | 'persistent';  // instant=即时生效，persistent=持续到被替换
 }
 
 /** 事件牌 */
@@ -98,6 +125,15 @@ export interface EventCard {
   name: string;
   description: string;
   effect: EventEffect;
+}
+
+/** 生效中的事件效果 */
+export interface ActiveEffect {
+  eventCardId: string;
+  eventName: string;
+  effect: EventEffect;
+  triggeredByPlayerId: string;
+  remainingRounds: number;  // 剩余生效轮数，0 表示仅当前回合
 }
 
 /** 公共牌（客人或事件） */
@@ -167,9 +203,10 @@ export interface GameState {
   winnerId: string | null;
   isGameOver: boolean;
   triggeringPlayerId: string | null;  // 首个达成条件者
-}
 
-/** 脱敏后的公开玩家信息 */
+  // 生效中的事件效果
+  activeEffects: ActiveEffect[];
+}
 export interface PublicPlayer {
   id: string;
   name: string;
@@ -198,6 +235,8 @@ export interface PublicGameState {
   winnerId: string | null;
   isGameOver: boolean;
   triggeringPlayerId: string | null;
+
+  activeEffects: ActiveEffect[];
 }
 
 // ========================================
@@ -210,6 +249,7 @@ export interface TurnResult {
   shopBonus: number;
   synergyBonus: number;
   flippedCards: MenuCard[];
+  gamblingModifier?: number;  // 技能额外收入（保留字段名兼容）
 }
 
 // ========================================
@@ -226,7 +266,7 @@ export type ClientMessage =
   | { type: 'SKIP_PURCHASE' }
   | { type: 'REMOVE_CARD'; cardId: string }
   | { type: 'SKIP_REMOVE' }
-  | { type: 'SELECT_GUEST'; cardIndex: number }
+  | { type: 'SELECT_GUEST'; cardIndex: number }  // 选择第cardIndex位客人，需支付cardIndex两跳过费
   | { type: 'READY' };
 
 /** 服务端 -> 客户端消息 */
@@ -236,7 +276,9 @@ export type ServerMessage =
   | { type: 'PLAYER_JOINED'; playerName: string }
   | { type: 'STATE_UPDATE'; state: PublicGameState }
   | { type: 'PREPARE_REVEAL'; cards: MenuCard[] }
-  | { type: 'TURN_RESULT'; dishIncome: number; shopBonus: number; synergyBonus: number; flippedCards: MenuCard[] }
+  | { type: 'TURN_RESULT'; dishIncome: number; shopBonus: number; synergyBonus: number; flippedCards: MenuCard[]; synergyDetail: string }
+  | { type: 'EVENT_TRIGGERED'; eventName: string; description: string; scope: string; triggeredBy: string }
+  | { type: 'GAME_LOG'; playerName: string; message: string; logType: 'action' | 'result' | 'event' | 'system' }
   | { type: 'TIMER_WARNING'; secondsLeft: number }
   | { type: 'GAME_OVER'; winnerId: string; finalState: PublicGameState }
   | { type: 'ERROR'; message: string };

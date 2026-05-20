@@ -7,7 +7,9 @@ import {
   ShopCard,
   GuestCard,
   PublicCard,
+  EventCard,
   GameState,
+  ActiveEffect,
   Player,
   PublicArea,
   PublicGameState,
@@ -15,6 +17,7 @@ import {
   StreetSlot,
   TurnResult,
   isGuestCard,
+  ShopSkillType,
 } from './types.js';
 import {
   INITIAL_MENU_PER_PLAYER,
@@ -30,6 +33,7 @@ import {
   VICTORY_MONEY,
   STARTING_MONEY,
   STREET_SLOT_COUNT,
+  SKIP_GUEST_FEE,
 } from './constants.js';
 
 // ========================================
@@ -61,7 +65,7 @@ export function initializeGame(
   playerInfos: Array<{ id: string; name: string }>,
 ): GameState {
   // 创建玩家初始牌库
-  const players: Player[] = playerInfos.map((info) => {
+  const players: Player[] = playerInfos.map((info, index) => {
     const library: MenuCard[] = [];
     for (const config of INITIAL_MENU_PER_PLAYER) {
       for (let i = 0; i < config.count; i++) {
@@ -75,7 +79,7 @@ export function initializeGame(
     return {
       id: info.id,
       name: info.name,
-      money: STARTING_MONEY,
+      money: STARTING_MONEY[index] ?? STARTING_MONEY[STARTING_MONEY.length - 1],
       library: shuffle(library),
       discard: [],
       removed: [],
@@ -124,6 +128,7 @@ export function initializeGame(
     winnerId: null,
     isGameOver: false,
     triggeringPlayerId: null,
+    activeEffects: [],
   };
 }
 
@@ -275,26 +280,47 @@ export function flipCards(
   };
 }
 
-/** 计算店铺匹配+联动 */
+/** 投掷骰子（1-6） */
+export function rollDice(): number {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+/** 检查客人是否匹配所有店铺（皇帝） */
+function isAllShopsGuest(guest: GuestCard): boolean {
+  return (guest as any).allShops === true;
+}
+
+/** 计算店铺匹配+联动+技能 */
 export function calculateShopBonus(
   player: Player,
   guest: GuestCard,
-): { bonus: number; synergy: number } {
+  shopIncomeReduction: number = 0,
+  autoMaxDice: boolean = false,
+): { bonus: number; synergy: number; skillIncome: number; skillDetail: string } {
   let bonus = 0;
   let synergyTotal = 0;
+  let skillIncome = 0;
+  const skillDetails: string[] = [];
 
   const builtShops = player.streetSlots.filter(
     (s): s is { state: 'built'; shopCard: ShopCard } => s.state === 'built',
   );
 
-  const matchedShops = builtShops.filter((slot) =>
-    guest.shopPreferences.some((pref) => pref.shopType === slot.shopCard.type),
-  );
+  const allShops = isAllShopsGuest(guest);
+
+  const matchedShops = allShops
+    ? builtShops
+    : builtShops.filter((slot) =>
+        guest.shopPreferences.some((pref) => pref.shopType === slot.shopCard.type),
+      );
 
   for (const slot of matchedShops) {
-    bonus += slot.shopCard.bonusIncome;
+    const shop = slot.shopCard;
+    // 基础收入，受门可罗雀影响（最低为0）
+    const reducedIncome = Math.max(0, shop.bonusIncome - shopIncomeReduction);
+    bonus += reducedIncome;
 
-    for (const syn of slot.shopCard.synergy) {
+    for (const syn of shop.synergy) {
       const hasPartner = builtShops.some(
         (s) => s.shopCard.type === syn.withShopType,
       );
@@ -302,17 +328,46 @@ export function calculateShopBonus(
         synergyTotal += syn.bonus;
       }
     }
+
+    // 技能结算（只有匹配到的店铺才触发技能）
+    if (shop.skill) {
+      const diceValue = autoMaxDice ? 6 : rollDice();
+      switch (shop.skill.type) {
+        case 'dice_check': {
+          if (diceValue >= (shop.skill.diceThreshold ?? 4)) {
+            const gain = shop.skill.diceBonus ?? 3;
+            skillIncome += gain;
+            skillDetails.push(`${shop.name}【${shop.skill.name}】掷${diceValue}≥${shop.skill.diceThreshold}，+${gain}两`);
+          } else {
+            skillDetails.push(`${shop.name}【${shop.skill.name}】掷${diceValue}<${shop.skill.diceThreshold}，未触发`);
+          }
+          break;
+        }
+        case 'dice_income': {
+          skillIncome += diceValue;
+          skillDetails.push(`${shop.name}【${shop.skill.name}】掷${diceValue}，+${diceValue}两`);
+          break;
+        }
+        case 'per_shop_income': {
+          const perShop = shop.skill.bonusPerShop ?? 1;
+          const totalPerShop = builtShops.length * perShop;
+          skillIncome += totalPerShop;
+          skillDetails.push(`${shop.name}【${shop.skill.name}】${builtShops.length}家店×${perShop}两，+${totalPerShop}两`);
+          break;
+        }
+      }
+    }
   }
 
-  return { bonus, synergy: synergyTotal };
+  return { bonus, synergy: synergyTotal, skillIncome, skillDetail: skillDetails.join('；') };
 }
 
-/** 经营：选客人 */
+/** 经营：选客人/事件 */
 export function selectGuest(
   state: GameState,
   playerIndex: number,
   cardIndex: number,
-): { state: GameState; result: TurnResult } {
+): { state: GameState; result: TurnResult; eventCard?: EventCard } {
   const newState = deepClone(state);
   const player = newState.players[playerIndex];
   const card = newState.publicArea.publicCards[cardIndex];
@@ -324,7 +379,42 @@ export function selectGuest(
     };
   }
 
+  // 事件牌处理
   if (!isGuestCard(card)) {
+    const eventCard = card as EventCard;
+    applyEventEffect(newState, eventCard, playerIndex);
+    newState.publicArea.publicCards.splice(cardIndex, 1);
+    if (newState.publicArea.guestEventDeck.length > 0) {
+      newState.publicArea.publicCards.splice(cardIndex, 0, newState.publicArea.guestEventDeck.shift()!);
+    }
+    newState.playerPhase = PlayerActionPhase.DONE;
+    newState.phaseStartTime = Date.now();
+    return {
+      state: newState,
+      result: { dishIncome: 0, shopBonus: 0, synergyBonus: 0, flippedCards: [] },
+      eventCard,
+    };
+  }
+
+  const guest: GuestCard = card;
+
+  // 休养生息事件：跳过经营，获得免费菜牌
+  const skipEffect = newState.activeEffects.find(
+    (ef) => ef.effect.type === 'skip_and_free_card',
+  );
+  if (skipEffect) {
+    // 给一张随机菜牌
+    const allGrades = [CardGrade.ONE, CardGrade.TWO, CardGrade.THREE, CardGrade.FOUR];
+    const randomGrade = allGrades[Math.floor(Math.random() * allGrades.length)];
+    const supply = newState.publicArea.menuSupply[randomGrade];
+    if (supply && supply.length > 0) {
+      const freeCard = supply.shift()!;
+      player.discard.push(freeCard);
+    }
+    // 移除效果
+    newState.activeEffects = newState.activeEffects.filter(
+      (ef) => ef.effect.type !== 'skip_and_free_card',
+    );
     newState.publicArea.publicCards.splice(cardIndex, 1);
     if (newState.publicArea.guestEventDeck.length > 0) {
       newState.publicArea.publicCards.splice(cardIndex, 0, newState.publicArea.guestEventDeck.shift()!);
@@ -337,24 +427,82 @@ export function selectGuest(
     };
   }
 
-  const guest: GuestCard = card;
+  // 计算翻牌数（考虑 draw_extra 效果）
+  let drawCount = guest.dishCount;
+  for (const ef of newState.activeEffects) {
+    if (ef.effect.type === 'draw_extra') {
+      drawCount = Math.max(1, drawCount + ef.effect.value);
+    }
+  }
 
   // 翻牌
-  const flipResult = flipCards(player.library, player.discard, guest.dishCount);
+  const flipResult = flipCards(player.library, player.discard, drawCount);
+
+  // 支付跳过费（选第 N 个客人需付 N 两）
+  const skipFee = cardIndex * SKIP_GUEST_FEE;
+  if (skipFee > 0) {
+    player.money -= skipFee;
+  }
   player.library = flipResult.newLibrary;
   player.discard = flipResult.newDiscard;
 
   // 计算菜品收入
-  const dishIncome = flipResult.flipped.reduce((sum, c) => sum + c.income, 0);
+  let dishIncome = flipResult.flipped.reduce((sum, c) => sum + c.income, 0);
+
+  // 应用菜品收入加成（无尖不商）
+  for (const ef of newState.activeEffects) {
+    if (ef.effect.type === 'dish_income_boost') {
+      dishIncome += flipResult.flipped.length * ef.effect.value;
+    }
+  }
+
+  // 应用收入修正效果
+  for (const ef of newState.activeEffects) {
+    if (ef.effect.type === 'income_modifier') {
+      const scopeTargets = getEffectTargets(newState, ef.effect.scope, playerIndex);
+      if (scopeTargets.includes(playerIndex)) {
+        if (ef.effect.value < 0 && ef.effect.value > -1) {
+          dishIncome = Math.floor(dishIncome * (1 + ef.effect.value));
+        } else {
+          dishIncome += ef.effect.value;
+        }
+      }
+    }
+  }
 
   // 翻出的牌进入弃牌堆
   player.discard.push(...flipResult.flipped);
 
-  // 计算店铺收入
-  const { bonus: shopBonus, synergy: synergyBonus } = calculateShopBonus(player, guest);
+  // 检查是否有门可罗雀效果（店铺基础收入减少）
+  let shopIncomeReduction = 0;
+  for (const ef of newState.activeEffects) {
+    if (ef.effect.type === 'shop_income_reduce') {
+      shopIncomeReduction += ef.effect.value;
+    }
+  }
+
+  // 检查是否有高朋满座效果（骰子视为最大值）
+  const autoMaxDice = newState.activeEffects.some(
+    (ef) => ef.effect.type === 'auto_max_dice',
+  );
+
+  // 计算店铺收入（含技能）
+  const { bonus: shopBonus, synergy: synergyBonus, skillIncome, skillDetail } = calculateShopBonus(
+    player, guest, shopIncomeReduction, autoMaxDice,
+  );
 
   // 总收入
-  player.money += dishIncome + shopBonus + synergyBonus;
+  const totalIncome = dishIncome + shopBonus + synergyBonus + skillIncome;
+  player.money += totalIncome;
+
+  // 苛捐杂税：回合结束时每店铺缴纳1两
+  for (const ef of newState.activeEffects) {
+    if (ef.effect.type === 'tax_per_shop') {
+      const builtCount = player.streetSlots.filter((s) => s.state === 'built').length;
+      const tax = builtCount * ef.effect.value;
+      player.money = Math.max(0, player.money - tax);
+    }
+  }
 
   // 移除公共牌，补牌
   newState.publicArea.publicCards.splice(cardIndex, 1);
@@ -372,8 +520,162 @@ export function selectGuest(
       shopBonus,
       synergyBonus,
       flippedCards: flipResult.flipped,
+      gamblingModifier: skillIncome,
     },
   };
+}
+
+/** 应用事件牌效果 */
+function applyEventEffect(state: GameState, eventCard: EventCard, triggeredByPlayerIndex: number): void {
+  const { effect } = eventCard;
+  const targets = getEffectTargets(state, effect.scope, triggeredByPlayerIndex);
+  const isPersistent = effect.duration === 'persistent';
+
+  switch (effect.type) {
+    case 'give_money': {
+      // 硕果累累：直接给钱
+      for (const idx of targets) {
+        state.players[idx].money += effect.value;
+      }
+      break;
+    }
+    case 'dice_money': {
+      // 天降横财：投掷骰子得钱
+      const diceValue = rollDice();
+      state.players[triggeredByPlayerIndex].money += diceValue;
+      break;
+    }
+    case 'swap_cards': {
+      // 辞旧迎新：弃掉后厨菜品，从供应区抽取等量新牌
+      for (const idx of targets) {
+        const player = state.players[idx];
+        const discardCount = player.discard.length;
+        // 将弃牌堆的牌全部移除
+        player.discard = [];
+        // 从供应区抽取等量的新牌（从各品级均匀抽取）
+        let remaining = discardCount;
+        const grades = [CardGrade.FOUR, CardGrade.THREE, CardGrade.TWO, CardGrade.ONE];
+        while (remaining > 0) {
+          let drew = false;
+          for (const grade of grades) {
+            if (remaining <= 0) break;
+            const supply = state.publicArea.menuSupply[grade];
+            if (supply && supply.length > 0) {
+              player.discard.push(supply.shift()!);
+              remaining--;
+              drew = true;
+            }
+          }
+          if (!drew) break; // 供应区没牌了
+        }
+      }
+      break;
+    }
+    case 'skip_and_free_card': {
+      // 休养生息：存入 activeEffects，在选客人时处理
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: 1,
+      });
+      break;
+    }
+    case 'auto_max_dice': {
+      // 高朋满座：本回合骰子视为6
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: 1,
+      });
+      break;
+    }
+    case 'shop_income_reduce':
+    case 'tax_per_shop':
+    case 'dish_income_boost': {
+      // 持续效果：替换同类型的旧持续效果，存入 activeEffects
+      if (isPersistent) {
+        // 替换同类型的持续效果
+        state.activeEffects = state.activeEffects.filter(
+          (ef) => ef.effect.type !== effect.type,
+        );
+      }
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: isPersistent ? 99 : 1,
+      });
+      break;
+    }
+    case 'income_modifier': {
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: isPersistent ? 99 : 1,
+      });
+      if (effect.value > 0 && effect.value >= 1) {
+        for (const idx of targets) {
+          state.players[idx].money += effect.value;
+        }
+      } else if (effect.value < -1) {
+        for (const idx of targets) {
+          state.players[idx].money = Math.max(0, state.players[idx].money + effect.value);
+        }
+      }
+      break;
+    }
+    case 'draw_extra': {
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: isPersistent ? 99 : 1,
+      });
+      break;
+    }
+    case 'discount': {
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: isPersistent ? 99 : 1,
+      });
+      break;
+    }
+    case 'skip_turn': {
+      state.activeEffects.push({
+        eventCardId: eventCard.id,
+        eventName: eventCard.name,
+        effect: { ...effect },
+        triggeredByPlayerId: state.players[triggeredByPlayerIndex].id,
+        remainingRounds: 1,
+      });
+      break;
+    }
+  }
+}
+
+/** 根据作用域获取目标玩家索引 */
+function getEffectTargets(state: GameState, scope: string, currentPlayerIndex: number): number[] {
+  switch (scope) {
+    case 'self':
+      return [currentPlayerIndex];
+    case 'all':
+      return state.players.map((_, i) => i);
+    case 'next_player':
+      return [(currentPlayerIndex + 1) % state.players.length];
+    default:
+      return [currentPlayerIndex];
+  }
 }
 
 // ========================================
@@ -403,6 +705,11 @@ export function advancePhase(state: GameState): GameState {
     case PlayerActionPhase.DONE: {
       const nextPlayerIndex = newState.currentPlayerIndex + 1;
       if (nextPlayerIndex >= newState.players.length) {
+        // 轮末：清理过期效果
+        newState.activeEffects = newState.activeEffects
+          .map((ef) => ({ ...ef, remainingRounds: ef.remainingRounds - 1 }))
+          .filter((ef) => ef.remainingRounds > 0);
+
         newState.roundPhase = RoundPhase.ROUND_END;
 
         const checkedState = checkVictory(newState);
@@ -415,6 +722,22 @@ export function advancePhase(state: GameState): GameState {
         newState.currentPlayerIndex = nextPlayerIndex;
         newState.playerPhase = PlayerActionPhase.PURCHASE;
         newState.phaseStartTime = Date.now();
+
+        // 检查是否被跳过回合
+        const skipEffect = newState.activeEffects.find(
+          (ef) => ef.effect.type === 'skip_turn' &&
+            getEffectTargets(newState, ef.effect.scope, newState.players.findIndex(
+              (p) => p.id === ef.triggeredByPlayerId
+            )).includes(nextPlayerIndex)
+        );
+        if (skipEffect) {
+          // 跳过该玩家，直接进入 DONE
+          newState.playerPhase = PlayerActionPhase.DONE;
+          // 移除这个效果
+          newState.activeEffects = newState.activeEffects.filter(
+            (ef) => ef.eventCardId !== skipEffect.eventCardId
+          );
+        }
       }
       break;
     }
@@ -488,6 +811,8 @@ export function getPublicState(state: GameState, forPlayerId?: string): PublicGa
     winnerId: state.winnerId,
     isGameOver: state.isGameOver,
     triggeringPlayerId: state.triggeringPlayerId,
+
+    activeEffects: state.activeEffects,
   };
 }
 

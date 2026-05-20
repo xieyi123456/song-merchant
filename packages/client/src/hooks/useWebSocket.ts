@@ -18,6 +18,8 @@ export function useWebSocket(
   const [gameState, setGameState] = useState<PublicGameState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
     const ws = new WebSocket(url);
@@ -41,8 +43,8 @@ export function useWebSocket(
           setGameState(msg.finalState);
         }
 
-        if (onMessage) {
-          onMessage(msg);
+        if (onMessageRef.current) {
+          onMessageRef.current(msg);
         }
       } catch (err) {
         console.error('[WS] 消息解析失败:', err);
@@ -60,7 +62,7 @@ export function useWebSocket(
     ws.onerror = (err) => {
       console.error('[WS] 连接错误:', err);
     };
-  }, [url, onMessage]);
+  }, [url]);
 
   useEffect(() => {
     connect();

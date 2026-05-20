@@ -6,6 +6,9 @@ import {
   RoundPhase,
   PublicGameState,
   MenuCard,
+  ShopCard,
+  GuestCard,
+  isGuestCard,
 } from '@song-merchant/shared';
 import {
   initializeGame,
@@ -16,6 +19,7 @@ import {
   skipRemove,
   selectGuest,
   advancePhase,
+  calculateShopBonus,
 } from '@song-merchant/shared';
 import { RoomPlayer } from './room-manager';
 
@@ -41,12 +45,21 @@ export class GameSession {
 
     this.state = initializeGame(this.roomId, playerNames);
     this.startTimer();
+    this.broadcastLog('系统', 'game-start', `游戏开始！共 ${this.state.players.length} 位玩家`);
     this.broadcast();
     return this.state;
   }
 
   private findPlayerIndex(playerId: string): number {
     return this.state.players.findIndex((p) => p.id === playerId);
+  }
+
+  private getPlayerName(playerIndex: number): string {
+    return this.state.players[playerIndex]?.name || '未知';
+  }
+
+  private getPlayerId(playerIndex: number): string {
+    return this.state.players[playerIndex]?.id || '';
   }
 
   handleAction(playerId: string, action: { type: string; [key: string]: any }): GameState {
@@ -56,38 +69,82 @@ export class GameSession {
         throw new Error('找不到玩家');
       }
 
-      // 检查是否是当前行动玩家
       if (playerIndex !== this.state.currentPlayerIndex) {
         throw new Error('不是你的回合');
       }
 
+      const playerName = this.getPlayerName(playerIndex);
+
       switch (action.type) {
-        case 'BUY_MENU':
-          this.state = buyMenuCard(this.state, playerIndex, action.grade);
+        case 'BUY_MENU': {
+          const grade = action.grade;
+          const gradeLabel: Record<number, string> = { 4: '四品', 3: '三品', 2: '二品', 1: '一品' };
+          const gradeText = gradeLabel[grade as number] || String(grade);
+          this.state = buyMenuCard(this.state, playerIndex, grade);
+          this.broadcastLog(playerName, playerId, `购买了 ${gradeText} 菜单牌`);
           break;
-        case 'BUY_SHOP':
+        }
+        case 'BUY_SHOP': {
+          const shopCard = this.state.publicArea.shopDisplay.find(
+            (s: ShopCard) => s.id === action.shopCardId
+          );
+          const shopName = shopCard ? `${shopCard.emoji}${shopCard.name}` : '店铺';
           this.state = buyShopCard(this.state, playerIndex, action.shopCardId);
+          this.broadcastLog(playerName, playerId, `建造了 ${shopName}（${shopCard?.buildCost || '?'}两）`);
           break;
+        }
         case 'SKIP_PURCHASE':
           this.state = skipPurchase(this.state, playerIndex);
+          this.broadcastLog(playerName, playerId, '跳过购买');
           break;
         case 'REMOVE_CARD':
           this.state = removeCard(this.state, playerIndex, action.cardId);
+          this.broadcastLog(playerName, playerId, '花费3两移出了一张菜单牌（精简牌库）');
           break;
         case 'SKIP_REMOVE':
           this.state = skipRemove(this.state, playerIndex);
+          this.broadcastLog(playerName, playerId, '跳过备菜');
           break;
         case 'SELECT_GUEST': {
+          const card = this.state.publicArea.publicCards[action.cardIndex];
+          const skipFee = action.cardIndex * 1; // SKIP_GUEST_FEE = 1
+          const skipText = skipFee > 0 ? `（跳过费 ${skipFee} 两）` : '';
           const result = selectGuest(this.state, playerIndex, action.cardIndex);
           this.state = result.state;
-          // 推送回合结算结果
-          this.sendToPlayer(playerId, {
-            type: 'TURN_RESULT',
-            dishIncome: result.result.dishIncome,
-            shopBonus: result.result.shopBonus,
-            synergyBonus: result.result.synergyBonus,
-            flippedCards: result.result.flippedCards,
-          });
+
+          if (result.eventCard) {
+            // 事件牌：全局广播
+            const scopeLabel = { self: '自己', all: '所有人', next_player: '下一位玩家' }[result.eventCard.effect.scope] || result.eventCard.effect.scope;
+            this.broadcastEvent(
+              result.eventCard.name,
+              result.eventCard.description,
+              scopeLabel,
+              playerName
+            );
+            this.broadcastLog(playerName, playerId, `触发了事件【${result.eventCard.name}】：${result.eventCard.description}（影响：${scopeLabel}）`);
+          } else {
+            // 客人牌：发送结算详情
+            const guest = card as GuestCard;
+            const synergyDetail = this.buildSynergyDetail(playerIndex, guest);
+            const gm = result.result.gamblingModifier || 0;
+            const gmText = gm !== 0 ? ` + 🎲技能+${gm}两` : '';
+            const totalIncome = result.result.dishIncome + result.result.shopBonus + result.result.synergyBonus + gm;
+
+            this.broadcastLog(
+              playerName, playerId,
+              `招待 ${guest.name}${skipText}：菜品收入 ${result.result.dishIncome}两 + 匹配加成 ${result.result.shopBonus}两 + 联动加成 ${result.result.synergyBonus}两${gmText} = 总收入 ${totalIncome}两${synergyDetail ? '（' + synergyDetail + '）' : ''}`
+            );
+
+            this.sendToPlayer(playerId, {
+              type: 'TURN_RESULT',
+              dishIncome: result.result.dishIncome,
+              shopBonus: result.result.shopBonus,
+              synergyBonus: result.result.synergyBonus,
+              flippedCards: result.result.flippedCards,
+              synergyDetail,
+              gamblingModifier: gm,
+            });
+          }
           break;
         }
         default:
@@ -101,26 +158,25 @@ export class GameSession {
 
       // 检查是否需要开始新轮次
       if (this.state.roundPhase === RoundPhase.ROUND_END) {
-        // 所有玩家行动完毕，进入下一轮
         this.state.roundNumber++;
         this.state.roundPhase = RoundPhase.PLAYER_TURNS;
         this.state.currentPlayerIndex = 0;
         this.state.playerPhase = PlayerActionPhase.PURCHASE;
         this.state.phaseStartTime = Date.now();
+        this.broadcastLog('系统', 'round-start', `=== 第 ${this.state.roundNumber} 轮开始 ===`);
       }
 
-      // 检查阶段是否变化，如果变化了重新启动定时器
       this.startTimer();
       this.broadcast();
 
-      // 备菜阶段特殊处理：推送 PREPARE_REVEAL
       if (this.state.playerPhase === PlayerActionPhase.PREPARATION) {
         this.sendPrepareReveal(playerId);
       }
 
-      // 检查游戏结束
       if (this.state.isGameOver) {
         this.clearTimer();
+        const winner = this.state.players.find((p) => p.id === this.state.winnerId);
+        this.broadcastLog('系统', 'game-over', `游戏结束！${winner?.name || '未知'} 获胜！`);
         this.broadcastGameOver();
       }
     } catch (err: any) {
@@ -133,44 +189,66 @@ export class GameSession {
     return this.state;
   }
 
+  private buildSynergyDetail(playerIndex: number, guest: GuestCard): string {
+    const player = this.state.players[playerIndex];
+    const builtShops = player.streetSlots
+      .filter((s): s is { state: 'built'; shopCard: ShopCard } => s.state === 'built')
+      .map((s) => s.shopCard);
+
+    const matchedShops = builtShops.filter((shop) =>
+      guest.shopPreferences.some((pref) => pref.shopType === shop.type)
+    );
+
+    const synergyPairs: string[] = [];
+    for (const shop of matchedShops) {
+      for (const syn of shop.synergy) {
+        const partner = builtShops.find((s) => s.type === syn.withShopType);
+        if (partner) {
+          synergyPairs.push(`${shop.emoji}${shop.name}+${partner.emoji}${partner.name} 联动+${syn.bonus}`);
+        }
+      }
+    }
+
+    return synergyPairs.join('，');
+  }
+
   handleTimeout(): GameState {
     const currentPlayer = this.state.players[this.state.currentPlayerIndex];
     console.log(`[GameSession] 玩家 ${currentPlayer.name} 超时`);
 
     const playerIndex = this.state.currentPlayerIndex;
+    const playerName = this.getPlayerName(playerIndex);
 
     switch (this.state.playerPhase) {
       case PlayerActionPhase.PURCHASE:
-        // 超时自动跳过购买
         this.state = skipPurchase(this.state, playerIndex);
+        this.broadcastLog(playerName, this.getPlayerId(playerIndex), '超时，自动跳过购买');
         break;
       case PlayerActionPhase.PREPARATION:
-        // 超时自动跳过备菜
         this.state = skipRemove(this.state, playerIndex);
+        this.broadcastLog(playerName, this.getPlayerId(playerIndex), '超时，自动跳过备菜');
         break;
-      case PlayerActionPhase.OPERATION:
-        // 超时自动选择第一个客人（index=0，不付插队费）
-        {
-          const result = selectGuest(this.state, playerIndex, 0);
-          this.state = result.state;
-        }
+      case PlayerActionPhase.OPERATION: {
+        const result = selectGuest(this.state, playerIndex, 0);
+        this.state = result.state;
+        this.broadcastLog(playerName, this.getPlayerId(playerIndex), '超时，自动选择第一位客人');
         break;
+      }
       default:
         break;
     }
 
-    // 如果阶段是 DONE，推进到下一玩家/轮次
     if (this.state.playerPhase === PlayerActionPhase.DONE) {
       this.state = advancePhase(this.state);
     }
 
-    // 检查是否需要开始新轮次
     if (this.state.roundPhase === RoundPhase.ROUND_END) {
       this.state.roundNumber++;
       this.state.roundPhase = RoundPhase.PLAYER_TURNS;
       this.state.currentPlayerIndex = 0;
       this.state.playerPhase = PlayerActionPhase.PURCHASE;
       this.state.phaseStartTime = Date.now();
+      this.broadcastLog('系统', 'round-start', `=== 第 ${this.state.roundNumber} 轮开始 ===`);
     }
 
     this.startTimer();
@@ -200,17 +278,14 @@ export class GameSession {
 
     const phaseTimeLimit = this.state.phaseTimeLimit;
 
-    // 40s 后推送 20s 警告
     this.warning20sTimer = setTimeout(() => {
       this.broadcastTimerWarning(20);
     }, phaseTimeLimit - 20000);
 
-    // 50s 后推送 10s 警告
     this.warning10sTimer = setTimeout(() => {
       this.broadcastTimerWarning(10);
     }, phaseTimeLimit - 10000);
 
-    // 60s 后超时处理
     this.timer = setTimeout(() => {
       this.handleTimeout();
     }, phaseTimeLimit);
@@ -241,6 +316,35 @@ export class GameSession {
         p.ws.send(
           JSON.stringify({ type: 'STATE_UPDATE', state: publicState })
         );
+      }
+    });
+  }
+
+  private broadcastLog(playerName: string, playerId: string, message: string): void {
+    const msg = JSON.stringify({
+      type: 'GAME_LOG',
+      playerName,
+      message,
+      logType: playerId === 'system' || playerId === 'round-start' || playerId === 'game-start' || playerId === 'game-over' ? 'system' : 'action',
+    });
+    this.players.forEach((p) => {
+      if (p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(msg);
+      }
+    });
+  }
+
+  private broadcastEvent(eventName: string, description: string, scope: string, triggeredBy: string): void {
+    const msg = JSON.stringify({
+      type: 'EVENT_TRIGGERED',
+      eventName,
+      description,
+      scope,
+      triggeredBy,
+    });
+    this.players.forEach((p) => {
+      if (p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(msg);
       }
     });
   }
@@ -281,7 +385,6 @@ export class GameSession {
     const player = this.state.players.find((p) => p.id === playerId);
     if (!player) return;
 
-    // 备菜阶段：展示玩家全部牌（牌库 + 弃牌堆）
     const allCards: MenuCard[] = [...player.library, ...player.discard];
 
     this.sendToPlayer(playerId, {
@@ -312,6 +415,7 @@ export class GameSession {
       winnerId: this.state.winnerId,
       isGameOver: this.state.isGameOver,
       triggeringPlayerId: this.state.triggeringPlayerId,
+      activeEffects: this.state.activeEffects,
     };
   }
 }

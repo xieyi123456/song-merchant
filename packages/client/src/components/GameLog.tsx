@@ -1,5 +1,5 @@
 // packages/client/src/components/GameLog.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { PublicGameState } from '@song-merchant/shared';
 import styles from './GameLog.module.css';
 
@@ -13,51 +13,26 @@ export interface LogEntry {
 }
 
 interface GameLogProps {
-  gameState: PublicGameState | null;
+  gameState: PublicGameState;
+  logs: LogEntry[];
 }
 
-// 玩家颜色映射
 const PLAYER_COLORS = ['#6ab0e0', '#e0a030', '#6ae060', '#e060a0'];
 
-export const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [prevRound, setPrevRound] = useState<number>(0);
+export const GameLog: React.FC<GameLogProps> = ({ gameState, logs }) => {
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // 当 gameState 变化时生成日志
-  useEffect(() => {
-    if (!gameState) return;
-
-    // 新一轮开始
-    if (gameState.roundNumber !== prevRound && gameState.roundNumber > 0) {
-      addLog({
-        playerName: '系统',
-        playerId: 'system',
-        message: `=== 第 ${gameState.roundNumber} 轮开始 ===`,
-        type: 'system',
-      });
-      setPrevRound(gameState.roundNumber);
-    }
-  }, [gameState?.roundNumber]);
-
-  const addLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
-    const newEntry: LogEntry = {
-      ...entry,
-      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-      timestamp: Date.now(),
-    };
-    setLogs((prev) => [...prev, newEntry]);
-  };
-
-  // 外部可调用 addLog（预留给 TURN_RESULT 等消息处理）
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  const getPlayerColor = (playerId: string): string => {
-    if (!gameState) return '#888';
-    const idx = gameState.players.findIndex((p) => p.id === playerId);
-    if (idx === -1) return '#888';
+  const getPlayerColor = (playerName: string): string => {
+    const idx = gameState.players.findIndex((p) => p.name === playerName);
+    if (idx === -1) {
+      if (playerName === '系统') return '#888';
+      if (playerName === '事件') return '#e06060';
+      return '#888';
+    }
     return PLAYER_COLORS[idx % PLAYER_COLORS.length];
   };
 
@@ -81,7 +56,7 @@ export const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
               <span className={styles.logTime}>{formatTime(entry.timestamp)}</span>
               <span
                 className={styles.logPlayer}
-                style={{ color: getPlayerColor(entry.playerId) }}
+                style={{ color: getPlayerColor(entry.playerName) }}
               >
                 {entry.playerName}
               </span>
@@ -94,13 +69,3 @@ export const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
     </div>
   );
 };
-
-// 导出 addLog 辅助函数，供外部消息处理使用
-export function createLogEntry(
-  playerName: string,
-  playerId: string,
-  message: string,
-  type: LogEntry['type'] = 'action'
-): Omit<LogEntry, 'id' | 'timestamp'> {
-  return { playerName, playerId, message, type };
-}

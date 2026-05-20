@@ -4,10 +4,24 @@ import {
   PublicGameState,
   CardGrade,
   ShopCard,
+  ShopType,
   GuestCard,
   EventCard,
 } from '@song-merchant/shared';
 import styles from './PublicArea.module.css';
+
+const SHOP_INFO: Record<string, { emoji: string; name: string }> = {
+  [ShopType.DRINKS]: { emoji: '🥤', name: '饮子铺' },
+  [ShopType.PORCELAIN]: { emoji: '🏺', name: '瓷器铺' },
+  [ShopType.WINEHOUSE]: { emoji: '🍶', name: '酒肆' },
+  [ShopType.BOOKSHOP]: { emoji: '📚', name: '书坊' },
+  [ShopType.SILK]: { emoji: '🧵', name: '绸缎庄' },
+  [ShopType.JEWELRY]: { emoji: '💍', name: '首饰铺' },
+  [ShopType.FORTUNE]: { emoji: '🔮', name: '卦肆' },
+  [ShopType.GAMBLING]: { emoji: '🎲', name: '官扑铺' },
+  [ShopType.CUJU]: { emoji: '⚽', name: '蹴鞠场' },
+  [ShopType.THEATER]: { emoji: '🎭', name: '勾栏瓦肆' },
+};
 
 interface PublicAreaProps {
   gameState: PublicGameState;
@@ -108,11 +122,14 @@ const ShopCardItem: React.FC<{ shop: ShopCard }> = ({ shop }) => {
       <div className={styles.shopBonus}>收益 +{shop.bonusIncome} 两</div>
       {shop.synergy && shop.synergy.length > 0 && (
         <div className={styles.shopSynergy}>
-          {shop.synergy.map((s, i) => (
-            <span key={i} className={styles.synergyTag}>
-              联动 +{s.bonus}
-            </span>
-          ))}
+          {shop.synergy.map((s, i) => {
+            const partner = SHOP_INFO[s.withShopType];
+            return (
+              <span key={i} className={styles.synergyTag}>
+                {partner ? `${partner.emoji}${partner.name}` : ''} 联动+{s.bonus}
+              </span>
+            );
+          })}
         </div>
       )}
     </div>
@@ -120,17 +137,22 @@ const ShopCardItem: React.FC<{ shop: ShopCard }> = ({ shop }) => {
 };
 
 const GuestCardItem: React.FC<{ card: GuestCard }> = ({ card }) => {
+  const isAllShops = (card as any).allShops === true;
   return (
     <div className={styles.guestCard}>
       <div className={styles.guestName}>{card.name}</div>
       <div className={styles.guestTitle}>{card.title}</div>
       <div className={styles.guestDishCount}>点菜 {card.dishCount} 道</div>
       <div className={styles.guestPrefs}>
-        {card.shopPreferences.map((pref, i) => (
-          <span key={i} className={styles.prefTag}>
-            {pref.label}
-          </span>
-        ))}
+        {isAllShops ? (
+          <span className={styles.prefTag}>所有店铺</span>
+        ) : (
+          card.shopPreferences.map((pref, i) => (
+            <span key={i} className={styles.prefTag}>
+              {pref.label}
+            </span>
+          ))
+        )}
       </div>
     </div>
   );

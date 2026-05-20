@@ -14,17 +14,23 @@ interface RevenueEstimateProps {
   isMyTurn: boolean;
 }
 
-/** 在客户端计算店铺匹配和联动加成 */
+interface SynergyDetail {
+  shop1: string;
+  shop2: string;
+  bonus: number;
+}
+
 function estimateShopBonus(
   player: PublicPlayer,
   guest: GuestCard,
-): { matchBonus: number; synergyBonus: number } {
+): { matchBonus: number; synergyBonus: number; synergyDetails: SynergyDetail[] } {
   const builtShops = player.streetSlots
     .filter((slot): slot is { state: 'built'; shopCard: ShopCard } => slot.state === 'built')
     .map((slot) => slot.shopCard);
 
   let matchBonus = 0;
   let synergyBonus = 0;
+  const synergyDetails: SynergyDetail[] = [];
 
   const matchedShops = builtShops.filter((shop) =>
     guest.shopPreferences.some((pref) => pref.shopType === shop.type),
@@ -34,21 +40,25 @@ function estimateShopBonus(
     matchBonus += shop.bonusIncome;
 
     for (const syn of shop.synergy) {
-      const hasPartner = builtShops.some((s) => s.type === syn.withShopType);
-      if (hasPartner) {
+      const partner = builtShops.find((s) => s.type === syn.withShopType);
+      if (partner) {
         synergyBonus += syn.bonus;
+        synergyDetails.push({
+          shop1: `${shop.emoji}${shop.name}`,
+          shop2: `${partner.emoji}${partner.name}`,
+          bonus: syn.bonus,
+        });
       }
     }
   }
 
-  return { matchBonus, synergyBonus };
+  return { matchBonus, synergyBonus, synergyDetails };
 }
 
 export const RevenueEstimate: React.FC<RevenueEstimateProps> = ({
   gameState,
   isMyTurn,
 }) => {
-  // 仅在经营阶段且是自己回合时显示
   if (
     gameState.playerPhase !== PlayerActionPhase.OPERATION ||
     !isMyTurn
@@ -59,7 +69,6 @@ export const RevenueEstimate: React.FC<RevenueEstimateProps> = ({
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (!currentPlayer) return null;
 
-  // 找出公共牌中的客人牌，逐一展示预估收益
   const guests = gameState.publicArea.publicCards.filter(
     (card): card is GuestCard => !('effect' in card),
   );
@@ -68,18 +77,40 @@ export const RevenueEstimate: React.FC<RevenueEstimateProps> = ({
     return null;
   }
 
+  // 生效中的事件效果
+  const activeEffects = gameState.activeEffects || [];
+  const drawExtraEffect = activeEffects.find((ef) => ef.effect.type === 'draw_extra');
+  const incomeModEffects = activeEffects.filter((ef) => ef.effect.type === 'income_modifier');
+
   return (
     <div className={styles.bar}>
       <span className={styles.label}>收益预估:</span>
+      {activeEffects.length > 0 && (
+        <div className={styles.effectsHint}>
+          {drawExtraEffect && <span>翻牌{drawExtraEffect.effect.value > 0 ? '+' : ''}{drawExtraEffect.effect.value} </span>}
+          {incomeModEffects.map((ef, i) => (
+            <span key={i}>收入修正{ef.effect.value > 0 ? '+' : ''}{ef.effect.value} </span>
+          ))}
+        </div>
+      )}
       {guests.map((guest) => {
-        const { matchBonus, synergyBonus } = estimateShopBonus(currentPlayer, guest);
+        const { matchBonus, synergyBonus, synergyDetails } = estimateShopBonus(currentPlayer, guest);
         return (
           <div key={guest.id} className={styles.guestRow}>
-            <span className={styles.guestName}>{guest.name}</span>
+            <span className={styles.guestName}>{guest.name}({guest.dishCount}道)</span>
             <span className={styles.plus}>+</span>
             <span className={styles.value}>匹配 {matchBonus}</span>
-            <span className={styles.plus}>+</span>
-            <span className={styles.value}>联动 {synergyBonus}</span>
+            {synergyBonus > 0 && (
+              <>
+                <span className={styles.plus}>+</span>
+                <span className={styles.value} title={synergyDetails.map((d) => `${d.shop1}+${d.shop2} 联动+${d.bonus}`).join('，')}>
+                  联动 {synergyBonus}
+                  <span className={styles.synergyHint}>
+                    ({synergyDetails.map((d) => `${d.shop1}+${d.shop2}`).join('，')})
+                  </span>
+                </span>
+              </>
+            )}
             <span className={styles.equals}>=</span>
             <span className={styles.total}>? + {matchBonus + synergyBonus} 两</span>
           </div>

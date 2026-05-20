@@ -55,3 +55,16 @@
   color: #d4a030;
   font-weight: 600;
 }
+
+.synergyHint {
+  font-size: 10px;
+  color: #888;
+  margin-left: 4px;
+}
+
+.effectsHint {
+  width: 100%;
+  font-size: 11px;
+  color: #e08080;
+  margin-bottom: 4px;
+}

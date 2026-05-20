@@ -1,12 +1,15 @@
 // packages/client/src/pages/LobbyPage.tsx
 import React, { useState, useEffect } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
 import styles from './LobbyPage.module.css';
 
 interface LobbyPageProps {
   sendMessage: (msg: any) => void;
   roomCode: string;
   playerId: string;
+  joinedPlayers: string[];
+  maxPlayers: number;
+  onMaxPlayersChange: (n: number) => void;
+  error: string;
 }
 
 type LobbyPhase = 'select' | 'waiting';
@@ -15,16 +18,18 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
   sendMessage,
   roomCode,
   playerId,
+  joinedPlayers,
+  maxPlayers,
+  onMaxPlayersChange,
+  error: serverError,
 }) => {
   const [phase, setPhase] = useState<LobbyPhase>('select');
-  const [playerName, setPlayerName] = useState('');
-  const [maxPlayers, setMaxPlayers] = useState(2);
+  const [createName, setCreateName] = useState('');
+  const [joinName, setJoinName] = useState('');
   const [joinRoomCode, setJoinRoomCode] = useState('');
-  const [joinedPlayers, setJoinedPlayers] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [localRoomCode, setLocalRoomCode] = useState('');
 
-  // 当 roomCode 由外部设置时，进入等待阶段
   useEffect(() => {
     if (roomCode) {
       setPhase('waiting');
@@ -32,25 +37,21 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
     }
   }, [roomCode]);
 
-  // 监听其他玩家加入
-  const [wsMessage, setWsMessage] = useState<any>(null);
-
   const handleCreate = () => {
-    if (!playerName.trim()) {
+    if (!createName.trim()) {
       setError('请输入昵称');
       return;
     }
     setError('');
-    setJoinedPlayers([playerName]);
     sendMessage({
       type: 'CREATE_ROOM',
-      playerName: playerName.trim(),
+      playerName: createName.trim(),
       maxPlayers,
     });
   };
 
   const handleJoin = () => {
-    if (!playerName.trim()) {
+    if (!joinName.trim()) {
       setError('请输入昵称');
       return;
     }
@@ -62,7 +63,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
     sendMessage({
       type: 'JOIN_ROOM',
       roomCode: joinRoomCode.trim(),
-      playerName: playerName.trim(),
+      playerName: joinName.trim(),
     });
   };
 
@@ -117,8 +118,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
               className={styles.input}
               type="text"
               placeholder="输入你的昵称"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
               maxLength={12}
             />
           </div>
@@ -129,7 +130,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
                 <button
                   key={n}
                   className={`${styles.countButton} ${maxPlayers === n ? styles.countButtonActive : ''}`}
-                  onClick={() => setMaxPlayers(n)}
+                  onClick={() => onMaxPlayersChange(n)}
                 >
                   {n}人
                 </button>
@@ -150,8 +151,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
               className={styles.input}
               type="text"
               placeholder="输入你的昵称"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              value={joinName}
+              onChange={(e) => setJoinName(e.target.value)}
               maxLength={12}
             />
           </div>
@@ -172,7 +173,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
         </div>
       </div>
 
-      {error && <div className={styles.errorMessage}>{error}</div>}
+      {(error || serverError) && <div className={styles.errorMessage}>{error || serverError}</div>}
     </div>
   );
 };
