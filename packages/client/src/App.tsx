@@ -91,8 +91,9 @@ const App: React.FC = () => {
     [phase, addLog]
   );
 
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const { sendMessage, connected, gameState } = useWebSocket(
-    `ws://${window.location.hostname}:3001`,
+    `${wsProtocol}//${window.location.host}/ws`,
     handleServerMessage
   );
 
